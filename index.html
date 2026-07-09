@@ -165,6 +165,9 @@ a:hover { text-decoration: underline; }
   position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%;
   background: rgba(18,18,18,0.75); color: #fff; font-size: 11px; line-height: 18px; text-align: center; cursor: pointer;
 }
+.retry-block { background: #fdf2f0; border: 1px solid var(--jac-status-red); border-radius: 6px; padding: 0.6rem; margin-bottom: 0.6rem; }
+.retry-block-label { font-size: var(--jac-text-caption); color: var(--jac-status-red); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 0.4rem; }
+.thumb .badge.failed { position: absolute; bottom: 0; left: 0; right: 0; font-size: 8px; text-align: center; padding: 1px 0; background: var(--jac-status-red); color: #fff; font-weight: 700; text-transform: uppercase; cursor: pointer; }
 
 .action-bar {
   position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--jac-grey-200);
@@ -387,7 +390,7 @@ const ICON_DOT = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentC
 const ICON_WARN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>';
 
 // EDIT THIS ONE LINE once your Airtable base is set up (see SETUP_GUIDE.md)
-const AIRTABLE_VIEW_URL = 'https://airtable.com/invite/l?inviteId=invICZtRuuSQO9qo1&inviteToken=8c9caa65bfd2cecacad5376629a82b6ca48335384e9adf8ee9372c4ae06e2989&utm_medium=email&utm_source=product_team&utm_content=transactional-alerts';
+const AIRTABLE_VIEW_URL = 'https://airtable.com/';
 document.getElementById('airtable-link').href = AIRTABLE_VIEW_URL;
 
 // ======================================================================
@@ -409,10 +412,11 @@ let serverAvailable = false;
 
 // Draft = whatever's currently typed/staged for a store, not yet submitted.
 let drafts = {};
-const photoStaging = {}; // { storeId: [ { localSrc } ] } — staged, not yet uploaded
-let localCounts = {};    // { storeId: number of entries submitted from this device }
+const photoStaging = {};   // { storeId: [ { localSrc } ] } — staged, not yet uploaded
+const photoRetries = {};   // { storeId: [ { recordId, localSrc, error } ] } — uploads that failed after the entry was already saved
+let localCounts = {};      // { storeId: number of entries submitted from this device }
 
-STORES.forEach(s => { drafts[s.id] = { note: '', rating: 0 }; photoStaging[s.id] = []; });
+STORES.forEach(s => { drafts[s.id] = { note: '', rating: 0 }; photoStaging[s.id] = []; photoRetries[s.id] = []; });
 
 function loadLocal() {
   try {
@@ -500,6 +504,7 @@ function buildFieldNotesUI(store) {
       </label>
     </div>
     <div class="thumbs" data-store="${store.id}"></div>
+    <div class="retry-wrap" data-store="${store.id}"></div>
     <div class="rating" data-store="${store.id}">
       <span class="rating-label">Impression:</span>
       ${[1,2,3,4,5].map(n => `<button class="rate-btn ${draft.rating === n ? 'active' : ''}" data-store="${store.id}" data-val="${n}">${n}</button>`).join('')}
@@ -524,6 +529,7 @@ function buildFieldNotesUI(store) {
   wrap.querySelector('.jac-btn-submit').addEventListener('click', () => submitEntry(store));
 
   renderThumbs(store.id);
+  renderRetries(store.id);
 }
 
 async function stagePhotos(storeId, files, inputEl) {
@@ -545,6 +551,64 @@ function renderThumbs(storeId) {
     x.addEventListener('click', () => {
       photoStaging[x.dataset.store].splice(parseInt(x.dataset.idx), 1);
       renderThumbs(x.dataset.store);
+    });
+  });
+}
+
+// Uploads a single photo to an existing Airtable record. Returns { ok, error }.
+async function uploadOnePhoto(recordId, localSrc) {
+  try {
+    const res = await fetch('/.netlify/functions/upload-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recordId,
+        filename: `photo_${Date.now()}.jpg`,
+        contentType: 'image/jpeg',
+        base64: localSrc.split(',')[1]
+      })
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: body.error || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Photos that failed to attach after their entry was already saved — shown separately
+// from the fresh-draft staging area, with a per-photo retry that reuses the same recordId.
+function renderRetries(storeId) {
+  const el = document.querySelector(`.retry-wrap[data-store="${storeId}"]`);
+  if (!el) return;
+  const queue = photoRetries[storeId];
+  if (!queue.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="retry-block">
+      <span class="retry-block-label">${queue.length} photo(s) didn't attach to your last entry</span>
+      <div class="thumbs">
+        ${queue.map((p, i) => `
+          <div class="thumb"><img src="${p.localSrc}" alt="">
+            <div class="badge failed" data-store="${storeId}" data-idx="${i}" title="${(p.error || '').replace(/"/g, '&quot;')}">${ICON_WARN} Retry</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  el.querySelectorAll('.badge.failed').forEach(badge => {
+    badge.addEventListener('click', async () => {
+      const idx = parseInt(badge.dataset.idx);
+      const entry = photoRetries[storeId][idx];
+      badge.textContent = 'Retrying...';
+      const result = await uploadOnePhoto(entry.recordId, entry.localSrc);
+      if (result.ok) {
+        photoRetries[storeId].splice(idx, 1);
+      } else {
+        entry.error = result.error;
+      }
+      renderRetries(storeId);
     });
   });
 }
@@ -613,19 +677,13 @@ async function submitEntry(store) {
     const data = await res.json();
     const recordId = data.recordId;
 
-    // Upload any staged photos to this brand-new entry
+    // Upload any staged photos to this brand-new entry — track failures instead of hiding them
+    const failed = [];
     for (const p of photos) {
-      await fetch('/.netlify/functions/upload-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recordId,
-          filename: `photo_${Date.now()}.jpg`,
-          contentType: 'image/jpeg',
-          base64: p.localSrc.split(',')[1]
-        })
-      }); // best-effort — if one photo fails to attach, the text entry is still saved
+      const result = await uploadOnePhoto(recordId, p.localSrc);
+      if (!result.ok) failed.push({ recordId, localSrc: p.localSrc, error: result.error });
     }
+    if (failed.length) photoRetries[store.id].push(...failed);
 
     // Reset the draft for this store — ready for the next entry
     drafts[store.id] = { note: '', rating: 0 };
@@ -635,8 +693,13 @@ async function submitEntry(store) {
     saveCounts();
     buildFieldNotesUI(store);
     const freshStatus = document.querySelector(`.save-status[data-store="${store.id}"]`);
-    freshStatus.className = 'save-status saved';
-    freshStatus.innerHTML = `${ICON_CHECK} Entry logged.`;
+    if (failed.length) {
+      freshStatus.className = 'save-status error';
+      freshStatus.innerHTML = `${ICON_WARN} Entry logged, but ${failed.length} photo${failed.length > 1 ? 's' : ''} failed to attach — see below to retry (${failed[0].error}).`;
+    } else {
+      freshStatus.className = 'save-status saved';
+      freshStatus.innerHTML = `${ICON_CHECK} Entry logged.`;
+    }
   } catch (err) {
     btn.disabled = false;
     statusEl.className = 'save-status error';
