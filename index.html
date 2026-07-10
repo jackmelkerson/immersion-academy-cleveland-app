@@ -462,7 +462,7 @@ function entriesHTML(storeId, groupKey, dimId, localList, delPrefix) {
   if (!items.length) return '';
   return '<div class="entries">' + items.map(it => {
     const e = it.e;
-    const authorTag = (e.author && e.author !== me) ? '<span class="entry-author">' + esc(e.author) + '</span>' : '';
+    const authorTag = e.author ? '<span class="entry-author">' + esc(e.author) + '</span>' : '';
     const pendingTag = (!it.remote && e.submitted === false) ? '<span class="entry-pending">Not submitted</span>' : '';
     const delBtn = it.remote ? '' : '<button class="x" onclick="' + delPrefix + it.i + ')">&times;</button>';
     return '<div class="entry' + (it.remote ? ' remote' : '') + '"><span class="entry-time">' + fmtTime(e.t) + '</span>' + authorTag + '<span class="entry-text">' + esc(e.text) + '</span>' + pendingTag + delBtn + '</div>';
@@ -515,6 +515,7 @@ function renderStores() {
         '<button class="jac-btn-rec" id="rec-' + store.id + '" onclick="toggleRec(\'' + store.id + '\')">&#9679; Voice Note</button>' +
         '<label class="photo-input-label">&#128247; Add Photos<input type="file" accept="image/*" capture="environment" multiple onchange="addPhotos(\'' + store.id + '\', this)"></label>' +
         '<button class="btn-copy-store" onclick="copyStore(\'' + store.id + '\')">Copy This Store\u2019s Notes</button>' +
+        '<button class="btn-copy-store" onclick="clearStore(\'' + store.id + '\')">Clear This Store</button>' +
       '</div>' +
       '<div class="clips" id="clips-' + store.id + '"></div>' +
       '<div class="thumbs" id="thumbs-' + store.id + '"></div>' +
@@ -920,6 +921,17 @@ function submitStore(id) {
   toast('Entry submitted — ' + (toSubmitEntries.length + toSubmitScores.length) + ' item(s) syncing');
   toSubmitEntries.forEach(({ dim, entry }) => enqueueEntrySync(id, dim, entry));
   toSubmitScores.forEach(key => enqueueScoreSync(id, key));
+}
+function clearStore(id) {
+  const store = allStores().find(x => x.id === id);
+  const name = store ? store.name : 'this store';
+  if (!confirm('Clear all notes, scores, photos, and voice notes for ' + name + '? This only clears your own device — anything already submitted stays on the shared Airtable dataset.')) return;
+  state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
+  state.drafts[id] = {};
+  state.scoreMeta[id] = {};
+  photoState[id] = [];
+  audioState[id] = [];
+  persist(); renderStores(); toast(name + ' cleared');
 }
 function retryUnsyncedEntries() {
   allStores().forEach(st => {
