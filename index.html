@@ -583,15 +583,19 @@ function addEntry(id, dim) {
   delete state.drafts[id][dim];
   persist(); renderStores(); toast('Comment added — Submit Entry locks it in');
 }
+function confirmDeleteTwice() {
+  if (!confirm('Remove this entry?')) return false;
+  return confirm('Are you sure? It’ll disappear from this device for good (it won’t come back on a pull) — the Airtable row is untouched.');
+}
 function delEntry(id, dim, i) {
-  if (!confirm('Remove this entry?')) return;
+  if (!confirmDeleteTwice()) return;
   const l = state.lens[id];
   const removed = ensure(id)[l].notes[dim].splice(i, 1)[0];
   if (removed && removed.id) state.deletedIds.push(removed.id);
   persist(); renderStores();
 }
 function delKiller(id, i) {
-  if (!confirm('Remove this entry?')) return;
+  if (!confirmDeleteTwice()) return;
   const removed = ensure(id).killer.splice(i, 1)[0];
   if (removed && removed.id) state.deletedIds.push(removed.id);
   persist(); renderStores();
@@ -986,14 +990,28 @@ async function pullData() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     const nextEntries = {};
+    const liveIds = new Set();
     (data.entries || []).forEach(f => {
       if (!f.entry_id || !f.store_id) return;
+      liveIds.add(f.entry_id);
       const groupKey = f.lens === 'one_thing' ? 'one_thing' : f.lens;
       const dimId = f.dimension_id || 'killer';
       nextEntries[f.store_id] = nextEntries[f.store_id] || {};
       nextEntries[f.store_id][groupKey] = nextEntries[f.store_id][groupKey] || {};
       nextEntries[f.store_id][groupKey][dimId] = nextEntries[f.store_id][groupKey][dimId] || [];
       nextEntries[f.store_id][groupKey][dimId].push({ id: f.entry_id, t: Date.parse(f.timestamp) || nowT(), text: f.text || '', author: f.author || 'Unknown' });
+    });
+    // If a synced local entry no longer shows up in Airtable (someone deleted the row there
+    // directly), drop it from this device's own view too — an unsynced/not-yet-submitted
+    // comment is never touched here, since its absence from Airtable is expected.
+    allStores().forEach(st => {
+      const s = ensure(st.id);
+      const prune = (list) => {
+        if (!Array.isArray(list)) return;
+        for (let i = list.length - 1; i >= 0; i--) { if (list[i].synced && !liveIds.has(list[i].id)) list.splice(i, 1); }
+      };
+      prune(s.killer);
+      ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(prune));
     });
     const nextScores = {};
     (data.scores || []).forEach(f => {
@@ -1003,7 +1021,7 @@ async function pullData() {
       nextScores[f.store_id][f.score_key][f.author] = { value: (f.value === undefined ? null : f.value), updatedAt: f.updated_at || null };
     });
     remoteEntries = nextEntries; remoteScores = nextScores;
-    saveRemoteCache(); renderStores(); refreshSyncBadge();
+    persist(); saveRemoteCache(); renderStores(); refreshSyncBadge();
   } catch (err) { refreshSyncBadge(); }
 }
 
