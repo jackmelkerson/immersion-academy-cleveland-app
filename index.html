@@ -168,7 +168,9 @@ body { padding-top: 1.8rem; }
 #sync-bar.ok { background: var(--jac-status-green); }
 .entry.remote { background: var(--jac-grey-100); border-left: 3px solid var(--jac-grey-300); }
 .entry-author { font-size: var(--jac-text-caption); font-weight: 700; color: var(--jac-grey-500); text-transform: uppercase; margin-right: 0.3rem; }
+.entry-pending { font-size: var(--jac-text-caption); font-weight: 700; color: var(--jac-magenta); text-transform: uppercase; margin-right: 0.3rem; white-space: nowrap; }
 .other-score { font-size: var(--jac-text-caption); color: var(--jac-grey-500); margin-left: 0.4rem; white-space: nowrap; }
+.btn-submit-store { display: block; width: 100%; margin-top: 0.9rem; padding: 0.75rem; border: none; border-radius: 6px; background: var(--jac-magenta); color: #fff; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; font-family: var(--jac-font-body); }
 #author-modal .jac-btn-map.sel { background: var(--jac-magenta); }
 @media (max-width: 768px) { body { padding-top: 2.2rem; } #sync-bar { font-size: 0.6rem; } }
 </style>
@@ -401,7 +403,19 @@ function allStores() { return [...BUILTIN, ...state.custom]; }
 function hydrateEntries(list) {
   if (!Array.isArray(list)) return;
   const me = getAuthor();
-  list.forEach(e => { if (!e.id) e.id = uuid(); if (!e.author) e.author = me || ''; if (e.synced === undefined) e.synced = false; });
+  list.forEach(e => {
+    if (!e.id) e.id = uuid();
+    if (!e.author) e.author = me || '';
+    if (e.synced === undefined) e.synced = false;
+    if (e.submitted === undefined) e.submitted = true; // pre-existing entries created before Submit existed
+  });
+}
+function pendingCommentCount(storeId) {
+  const s = ensure(storeId);
+  let n = 0;
+  (s.killer || []).forEach(e => { if (!e.submitted) n++; });
+  ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (!e.submitted) n++; })));
+  return n;
 }
 function ensure(id) {
   if (!state.stores[id]) state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
@@ -443,8 +457,9 @@ function entriesHTML(storeId, groupKey, dimId, localList, delPrefix) {
   return '<div class="entries">' + items.map(it => {
     const e = it.e;
     const authorTag = (e.author && e.author !== me) ? '<span class="entry-author">' + esc(e.author) + '</span>' : '';
+    const pendingTag = (!it.remote && e.submitted === false) ? '<span class="entry-pending">Not submitted</span>' : '';
     const delBtn = it.remote ? '' : '<button class="x" onclick="' + delPrefix + it.i + ')">&times;</button>';
-    return '<div class="entry' + (it.remote ? ' remote' : '') + '"><span class="entry-time">' + fmtTime(e.t) + '</span>' + authorTag + '<span class="entry-text">' + esc(e.text) + '</span>' + delBtn + '</div>';
+    return '<div class="entry' + (it.remote ? ' remote' : '') + '"><span class="entry-time">' + fmtTime(e.t) + '</span>' + authorTag + '<span class="entry-text">' + esc(e.text) + '</span>' + pendingTag + delBtn + '</div>';
   }).join('') + '</div>';
 }
 function renderStores() {
@@ -497,6 +512,7 @@ function renderStores() {
       '</div>' +
       '<div class="clips" id="clips-' + store.id + '"></div>' +
       '<div class="thumbs" id="thumbs-' + store.id + '"></div>' +
+      '<button class="btn-submit-store" onclick="submitStore(\'' + store.id + '\')">Submit Entry ✓' + (pendingCommentCount(store.id) ? ' (' + pendingCommentCount(store.id) + ')' : '') + '</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -519,7 +535,9 @@ function setQuick(id, q, n) { const s = ensure(id); s.quick[q] = s.quick[q] === 
 function setDim(id, d, n) { const s = ensure(id), l = state.lens[id]; s[l].scores[d] = s[l].scores[d] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, l + '.' + d); }
 function setLensTab(id, l) { state.lens[id] = l; persist(); renderStores(); }
 function toggleCard(id) {
-  state.openId = state.openId === id ? null : id;
+  const closing = state.openId === id;
+  if (closing) { const p = pendingCommentCount(id); if (p) toast('Heads up — ' + p + ' comment(s) not yet submitted for this store'); }
+  state.openId = closing ? null : id;
   persist(); renderStores();
   if (state.openId === id) {
     const card = document.getElementById('card-' + id);
@@ -548,7 +566,7 @@ function addEntry(id, dim) {
   const text = (ta.value || '').trim();
   if (!text) { toast('Nothing to save yet — type or dictate first'); return; }
   const s = ensure(id);
-  const entry = { id: uuid(), t: nowT(), text, author: getAuthor() || 'Unknown', synced: false };
+  const entry = { id: uuid(), t: nowT(), text, author: getAuthor() || 'Unknown', submitted: false, synced: false };
   if (dim === 'killer') s.killer.push(entry);
   else {
     const l = state.lens[id];
@@ -556,8 +574,7 @@ function addEntry(id, dim) {
     s[l].notes[dim].push(entry);
   }
   delete state.drafts[id][dim];
-  persist(); renderStores(); toast('Entry locked ' + fmtTime(nowT()));
-  pushEntryNow(id, dim, entry);
+  persist(); renderStores(); toast('Comment added — Submit Entry locks it in');
 }
 function delEntry(id, dim, i) {
   if (!confirm('Remove this entry?')) return;
@@ -680,7 +697,7 @@ function storeText(st) {
   const s = ensure(st.id);
   let out = '==================================================\n' + st.name.toUpperCase() + '\n' + (st.address || '') + '\nExported: ' + new Date().toLocaleString('en-CA') + '\n==================================================\n';
   const kDraft = draftOf(st.id, 'killer');
-  if (s.killer.length || (kDraft && kDraft.trim())) { out += '\nTHE ONE THING:\n'; s.killer.forEach(e => out += '  [' + fmtTime(e.t) + '] ' + e.text + '\n'); if (kDraft && kDraft.trim()) out += '  [draft — not yet saved] ' + kDraft.trim() + '\n'; }
+  if (s.killer.length || (kDraft && kDraft.trim())) { out += '\nTHE ONE THING:\n'; s.killer.forEach(e => out += '  [' + fmtTime(e.t) + ']' + (e.submitted === false ? ' [not submitted]' : '') + ' ' + e.text + '\n'); if (kDraft && kDraft.trim()) out += '  [draft — not yet saved] ' + kDraft.trim() + '\n'; }
   out += '\nQUICK SCORES:\n';
   QUICK.forEach(q => { out += '  ' + q.name + ': ' + (s.quick[q.id] ? s.quick[q.id] + '/5' : 'not scored') + '\n'; });
   ['creative', 'strategy'].forEach(l => {
@@ -689,7 +706,7 @@ function storeText(st) {
     LENSES[l].dims.forEach(dim => {
       const sc = s[l].scores[dim.id], entries = s[l].notes[dim.id] || [];
       out += '\n' + dim.name + ': ' + (sc ? sc + '/5' : 'not scored') + '\n';
-      entries.forEach(e => out += '  [' + fmtTime(e.t) + '] ' + e.text + '\n');
+      entries.forEach(e => out += '  [' + fmtTime(e.t) + ']' + (e.submitted === false ? ' [not submitted]' : '') + ' ' + e.text + '\n');
       const dr = draftOf(st.id, dim.id);
       if (dr && dr.trim()) out += '  [draft — not yet saved] ' + dr.trim() + '\n';
     });
@@ -803,8 +820,8 @@ function pendingCount() {
   let n = 0;
   allStores().forEach(st => {
     const s = ensure(st.id);
-    (s.killer || []).forEach(e => { if (!e.synced) n++; });
-    ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (!e.synced) n++; })));
+    (s.killer || []).forEach(e => { if (e.submitted && !e.synced) n++; });
+    ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (e.submitted && !e.synced) n++; })));
     const meta = state.scoreMeta[st.id] || {};
     Object.keys(meta).forEach(k => { if (!meta[k].synced) n++; });
   });
@@ -822,8 +839,27 @@ async function apiPost(path, payload) {
   return res.json();
 }
 
-async function pushEntryNow(storeId, dim, entry) {
+// Serial queue — Submit can stage several comments at once, and this sends them one at a
+// time with a short gap so a batch never bursts past Airtable's 5 req/sec limit.
+let entrySyncQueue = [];
+let entrySyncRunning = false;
+function enqueueEntrySync(storeId, dim, entry) {
   if (entry.synced) return;
+  entrySyncQueue.push({ storeId, dim, entry });
+  runEntrySyncQueue();
+}
+async function runEntrySyncQueue() {
+  if (entrySyncRunning) return;
+  entrySyncRunning = true;
+  while (entrySyncQueue.length) {
+    if (!navigator.onLine) break;
+    const job = entrySyncQueue.shift();
+    if (!job.entry.synced) await pushEntryOnce(job.storeId, job.dim, job.entry);
+    await new Promise(r => setTimeout(r, 250));
+  }
+  entrySyncRunning = false;
+}
+async function pushEntryOnce(storeId, dim, entry) {
   const store = allStores().find(x => x.id === storeId);
   const l = state.lens[storeId];
   const lens = dim === 'killer' ? 'one_thing' : l;
@@ -838,11 +874,21 @@ async function pushEntryNow(storeId, dim, entry) {
     entry.synced = true; persist(); refreshSyncBadge();
   } catch (err) { refreshSyncBadge(); }
 }
+function submitStore(id) {
+  const s = ensure(id);
+  const toSubmit = [];
+  (s.killer || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmit.push({ dim: 'killer', entry: e }); } });
+  ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmit.push({ dim: dimId, entry: e }); } })));
+  if (!toSubmit.length) { toast('Nothing new to submit for this store'); return; }
+  persist(); renderStores();
+  toast('Entry submitted — ' + toSubmit.length + ' item(s) syncing');
+  toSubmit.forEach(({ dim, entry }) => enqueueEntrySync(id, dim, entry));
+}
 function retryUnsyncedEntries() {
   allStores().forEach(st => {
     const s = ensure(st.id);
-    (s.killer || []).forEach(e => { if (!e.synced) pushEntryNow(st.id, 'killer', e); });
-    ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.synced) pushEntryNow(st.id, dimId, e); })));
+    (s.killer || []).forEach(e => { if (e.submitted && !e.synced) enqueueEntrySync(st.id, 'killer', e); });
+    ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (e.submitted && !e.synced) enqueueEntrySync(st.id, dimId, e); })));
   });
 }
 
