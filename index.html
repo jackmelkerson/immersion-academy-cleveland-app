@@ -784,11 +784,18 @@ document.getElementById('copy-summary-btn').addEventListener('click', () => copy
 document.getElementById('copy-csv-btn').addEventListener('click', () => copyToClip(buildCSV(), 'CSV'));
 document.getElementById('clear-btn').addEventListener('click', () => {
   if (confirm('Clear ALL notes, scores, photos, and voice notes? This cannot be undone.')) {
-    state = { stores: {}, custom: [], lens: {}, drafts: {} };
+    state = { stores: {}, custom: [], lens: {}, drafts: {}, openId: null, scoreMeta: {}, deletedIds: [] };
     Object.keys(photoState).forEach(k => photoState[k] = []);
     Object.keys(audioState).forEach(k => audioState[k] = []);
-    try { localStorage.removeItem(KEY); localStorage.removeItem('cle_immersion_v5'); localStorage.removeItem('cle_immersion_v3'); } catch (e) {}
+    entrySyncQueue = [];
+    Object.keys(scoreDebounceTimers).forEach(k => clearTimeout(scoreDebounceTimers[k]));
+    scoreDebounceTimers = {};
+    try {
+      localStorage.removeItem(KEY); localStorage.removeItem('cle_immersion_v5'); localStorage.removeItem('cle_immersion_v3');
+      localStorage.removeItem(REMOTE_CACHE_KEY);
+    } catch (e) {}
     persist(); renderStores(); toast('Cleared');
+    pullData();
   }
 });
 
