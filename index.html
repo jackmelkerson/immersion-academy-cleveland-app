@@ -911,6 +911,24 @@ async function pushScoreOnce(storeId, key) {
 function submitStore(id) {
   const s = ensure(id);
   const toSubmitEntries = [];
+
+  // Submit also finalizes any text still sitting in a box that was never explicitly
+  // "Added" — you don't have to tap Add on every box before submitting the store.
+  const dimIds = ['killer', ...LENSES.creative.dims.map(d => d.id), ...LENSES.strategy.dims.map(d => d.id)];
+  dimIds.forEach(dimId => {
+    const text = (draftOf(id, dimId) || '').trim();
+    if (!text) return;
+    const entry = { id: uuid(), t: nowT(), text, author: getAuthor() || 'Unknown', submitted: true, synced: false };
+    if (dimId === 'killer') s.killer.push(entry);
+    else {
+      const lensOf = LENSES.creative.dims.some(d => d.id === dimId) ? 'creative' : 'strategy';
+      if (!s[lensOf].notes[dimId]) s[lensOf].notes[dimId] = [];
+      s[lensOf].notes[dimId].push(entry);
+    }
+    delete state.drafts[id][dimId];
+    toSubmitEntries.push({ dim: dimId, entry });
+  });
+
   (s.killer || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmitEntries.push({ dim: 'killer', entry: e }); } });
   ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmitEntries.push({ dim: dimId, entry: e }); } })));
   const meta = state.scoreMeta[id] || {};
