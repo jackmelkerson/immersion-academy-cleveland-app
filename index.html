@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>Cleveland Market Immersion — Field Tool v07 | July 13, 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --jac-rich-black: #121212; --jac-medium-grey: #69635F; --jac-soft-grey: #F2EEED;
+  --jac-pure-white: #FFFFFF; --jac-magenta: #FF0984;
+  --jac-grey-900: #362F2B; --jac-grey-700: #69635F; --jac-grey-500: #86827F;
+  --jac-grey-400: #A4A09F; --jac-grey-300: #C3C1BE; --jac-grey-200: #E1DFDE; --jac-grey-100: #F2EEED;
+  --jac-status-green: #5CA473; --jac-status-red: #EA4F34;
+  --jac-font-display: 'Georgia', 'Times New Roman', serif;
+  --jac-font-body: 'Arial', 'Helvetica Neue', sans-serif;
+  --jac-text-hero: 2.5rem; --jac-text-title: 1.75rem; --jac-text-subtitle: 1.25rem;
+  --jac-text-body: 0.875rem; --jac-text-small: 0.75rem; --jac-text-caption: 0.625rem;
+  --jac-space-xs: 0.25rem; --jac-space-sm: 0.5rem; --jac-space-md: 1rem;
+  --jac-space-lg: 1.5rem; --jac-space-xl: 2.5rem; --jac-space-2xl: 4rem;
+  --jac-max-width: 1200px; --jac-content-padding: 2.5rem;
+  --jac-ease: cubic-bezier(0.4, 0, 0.2, 1); --jac-duration: 300ms;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body { font-family: var(--jac-font-body); font-size: var(--jac-text-body); line-height: 1.5; color: var(--jac-rich-black); background: var(--jac-pure-white); padding-bottom: 5.5rem; }
+.jac-container { max-width: var(--jac-max-width); margin: 0 auto; padding: 0 var(--jac-content-padding); }
+.jac-section { padding: var(--jac-space-xl) 0; }
+.jac-section + .jac-section { border-top: 1px solid var(--jac-grey-200); }
+a { color: var(--jac-magenta); text-decoration: none; } a:hover { text-decoration: underline; }
+.jac-display { font-family: var(--jac-font-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+.jac-eyebrow { font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.08em; color: var(--jac-medium-grey); }
+.jac-highlight { background: var(--jac-magenta); color: var(--jac-pure-white); padding: 0.05em 0.2em; }
+.jac-tag { display: inline-block; padding: 0.2rem 0.6rem; font-size: var(--jac-text-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 2px; }
+.jac-tag-academy { background: var(--jac-magenta); color: var(--jac-pure-white); }
+.jac-tag-competitor { background: var(--jac-rich-black); color: var(--jac-pure-white); }
+.jac-tag-lunch { background: var(--jac-status-green); color: var(--jac-pure-white); }
+.jac-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--jac-space-xl); }
+.jac-metric-value { font-family: var(--jac-font-display); font-weight: 700; font-size: 2.1rem; line-height: 1; }
+.jac-metric-label { display: block; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.06em; color: var(--jac-medium-grey); margin-top: var(--jac-space-xs); }
+.jac-btn-map { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1rem; border-radius: 4px; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; border: none; cursor: pointer; background: var(--jac-rich-black); color: var(--jac-pure-white); font-family: var(--jac-font-body); }
+.jac-btn-map:hover { background: var(--jac-magenta); text-decoration: none; }
+.jac-btn-map-primary { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.75rem; background: var(--jac-magenta); color: var(--jac-pure-white); border-radius: 4px; font-weight: 700; font-size: var(--jac-text-body); text-transform: uppercase; letter-spacing: 0.04em; }
+.jac-btn-map-primary:hover { background: var(--jac-rich-black); text-decoration: none; }
+
+/* Compact itinerary rows */
+.itin-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem 1rem; padding: 0.8rem 0; border-bottom: 1px solid var(--jac-grey-200); }
+.itin-time { font-family: var(--jac-font-display); font-weight: 700; font-size: var(--jac-text-body); white-space: nowrap; min-width: 8.5rem; }
+.itin-name { font-weight: 700; font-size: var(--jac-text-body); flex: 1; min-width: 12rem; }
+.itin-drive { flex-basis: 100%; color: var(--jac-medium-grey); font-size: var(--jac-text-small); }
+.itin-row a { font-size: var(--jac-text-small); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+
+/* Store cards */
+.jac-stop { border: 1px solid var(--jac-grey-200); border-radius: 6px; padding: var(--jac-space-lg); margin-bottom: var(--jac-space-lg); background: var(--jac-pure-white); }
+.jac-stop-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--jac-space-md); margin-bottom: var(--jac-space-sm); }
+.jac-stop-name { font-family: var(--jac-font-display); font-weight: 700; font-size: var(--jac-text-subtitle); }
+.jac-stop-meta { color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-md); }
+.jac-details { border-top: 1px solid var(--jac-grey-200); padding-top: var(--jac-space-md); margin-top: var(--jac-space-md); }
+.jac-details summary { cursor: pointer; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-medium-grey); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.jac-details summary::-webkit-details-marker { display: none; }
+.jac-chevron { transition: transform var(--jac-duration) var(--jac-ease); }
+.jac-details[open] .jac-chevron { transform: rotate(180deg); }
+.jac-details ul { margin-top: var(--jac-space-sm); padding-left: 1.1rem; font-size: var(--jac-text-body); }
+.jac-details li { margin-bottom: 0.35rem; }
+
+/* Quick scores */
+.quick-scores { border-top: 1px solid var(--jac-grey-200); margin-top: var(--jac-space-md); padding-top: var(--jac-space-md); }
+.qs-label { font-size: var(--jac-text-small); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-medium-grey); display: block; margin-bottom: 0.6rem; }
+.qs-row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.qs-name { font-size: var(--jac-text-body); font-weight: 700; min-width: 11.5rem; }
+.qs-hint { flex-basis: 100%; font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin: -0.3rem 0 0.2rem; }
+.rating { display: flex; gap: 0.3rem; }
+.rating button { width: 2rem; height: 2rem; border-radius: 50%; background: #fff; color: var(--jac-medium-grey); border: 1px solid var(--jac-grey-300); font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: var(--jac-font-body); padding: 0; }
+.rating button.active { background: var(--jac-rich-black); color: #fff; border-color: var(--jac-rich-black); }
+
+/* Lens tabs + dimensions */
+.lens-tabs { display: flex; border-bottom: 1px solid var(--jac-grey-200); margin-top: var(--jac-space-lg); }
+.lens-tabs button { flex: 1; padding: 0.7rem 0.5rem; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-400); cursor: pointer; font-family: var(--jac-font-body); }
+.lens-tabs button.active { color: var(--jac-rich-black); border-bottom-color: var(--jac-magenta); }
+.dim { margin-top: var(--jac-space-md); }
+.dim-name { font-size: var(--jac-text-body); font-weight: 700; }
+.dim-hints { font-size: var(--jac-text-small); color: var(--jac-grey-500); line-height: 1.4; margin: 2px 0 0.5rem; }
+.dim textarea, .killer textarea { width: 100%; min-height: 3.2rem; border: 1px solid var(--jac-grey-300); border-radius: 6px; padding: 0.6rem; font-family: var(--jac-font-body); font-size: 0.9rem; resize: vertical; margin-top: 0.5rem; }
+.killer { border: 1px solid var(--jac-grey-200); border-left: 3px solid var(--jac-rich-black); border-radius: 0 6px 6px 0; padding: var(--jac-space-md); margin-top: var(--jac-space-lg); background: var(--jac-soft-grey); }
+
+/* Voice + photos */
+.capture-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: var(--jac-space-md); }
+.jac-btn-rec { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1rem; border-radius: 4px; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid var(--jac-grey-300); background: var(--jac-pure-white); cursor: pointer; font-family: var(--jac-font-body); }
+.jac-btn-rec.recording { background: var(--jac-status-red); border-color: var(--jac-status-red); color: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: 0.6; } }
+.photo-input-label { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--jac-soft-grey); border: 1px dashed var(--jac-grey-300); border-radius: 4px; padding: 0.55rem 0.9rem; font-size: var(--jac-text-small); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; }
+.photo-input-label input { display: none; }
+.clips { margin-top: 0.5rem; }
+.clip { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+.clip audio { height: 32px; max-width: 240px; }
+.clip .x, .thumb .x { width: 17px; height: 17px; border-radius: 50%; background: rgba(18,18,18,0.75); color: #fff; font-size: 10px; line-height: 17px; text-align: center; cursor: pointer; border: none; padding: 0; flex-shrink: 0; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.thumb { position: relative; width: 60px; height: 60px; border-radius: 6px; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .x { position: absolute; top: 2px; right: 2px; }
+
+/* Add store */
+.add-store { border: 2px dashed var(--jac-grey-300); border-radius: 6px; padding: var(--jac-space-lg); text-align: center; }
+.add-form { text-align: left; margin-top: var(--jac-space-md); display: none; }
+.add-form.open { display: block; }
+.add-form input[type=text] { width: 100%; padding: 0.6rem; border: 1px solid var(--jac-grey-300); border-radius: 6px; font-size: 16px; margin-bottom: 0.6rem; font-family: var(--jac-font-body); }
+.add-form .typerow { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.add-form .typerow button { flex: 1; padding: 0.6rem; border: 1px solid var(--jac-grey-300); background: #fff; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; cursor: pointer; border-radius: 4px; font-family: var(--jac-font-body); }
+.add-form .typerow button.sel { background: var(--jac-rich-black); color: #fff; border-color: var(--jac-rich-black); }
+
+/* Compare */
+.cmp-wrap { overflow-x: auto; border: 1px solid var(--jac-grey-200); border-radius: 6px; }
+.cmp-wrap table { border-collapse: collapse; width: 100%; font-size: var(--jac-text-small); }
+.cmp-wrap th { text-align: center; padding: 0.55rem 0.5rem; font-size: var(--jac-text-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-500); border-bottom: 1px solid var(--jac-grey-300); }
+.cmp-wrap th:first-child { text-align: left; }
+.cmp-wrap td { padding: 0.55rem 0.5rem; border-bottom: 1px solid var(--jac-grey-100); text-align: center; font-weight: 700; }
+.cmp-wrap td:first-child { text-align: left; font-weight: 400; }
+.cmp-wrap tr.grp td { background: var(--jac-soft-grey); font-weight: 700; }
+.hi { color: var(--jac-status-green); } .lo { color: var(--jac-status-red); }
+
+/* Action bar */
+.action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--jac-pure-white); border-top: 1px solid var(--jac-grey-200); padding: 0.65rem var(--jac-content-padding); display: flex; gap: 0.6rem; justify-content: center; align-items: center; z-index: 50; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); flex-wrap: wrap; }
+.action-bar button { font-family: var(--jac-font-body); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; border: none; border-radius: 5px; padding: 0.6rem 1rem; cursor: pointer; }
+.btn-dark { background: var(--jac-rich-black); color: #fff; }
+.btn-magenta { background: var(--jac-magenta); color: #fff; }
+.btn-outline { background: #fff; color: var(--jac-rich-black); border: 1px solid var(--jac-grey-300) !important; }
+
+.toast { position: fixed; bottom: 6rem; left: 50%; transform: translateX(-50%); background: var(--jac-rich-black); color: #fff; padding: 0.6rem 1.2rem; font-size: 0.75rem; font-weight: 700; border-radius: 4px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 200; }
+.toast.show { opacity: 1; }
+.jac-reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s var(--jac-ease), transform 0.6s var(--jac-ease); }
+.jac-reveal.jac-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .jac-reveal { opacity: 1 !important; transform: none !important; transition: none !important; } }
+@media (max-width: 768px) {
+  :root { --jac-content-padding: 1.25rem; --jac-text-hero: 1.75rem; --jac-text-title: 1.3rem; }
+  .itin-time { min-width: auto; }
+  .qs-name { min-width: 100%; }
+}
+@media print { .action-bar { display: none !important; } body { padding-bottom: 0; } .jac-reveal { opacity: 1 !important; transform: none !important; } }
+</style>
+<style>
+/* v04 additions: note entries */
+.dim .rating { margin: 0.5rem 0 0.85rem; }
+.quick-scores .rating { margin-bottom: 0.2rem; }
+.entry-input-row { margin-top: 0.5rem; }
+.entries { margin: 0.4rem 0 0.5rem; }
+.entry { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.4rem 0.5rem; background: var(--jac-soft-grey); border-radius: 4px; margin-bottom: 0.3rem; font-size: var(--jac-text-body); }
+.entry-time { font-size: var(--jac-text-caption); font-weight: 700; color: var(--jac-grey-500); white-space: nowrap; }
+.entry-text { flex: 1; }
+.entry .x { width: 16px; height: 16px; border-radius: 50%; background: var(--jac-grey-300); color: #fff; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; border: none; padding: 0; flex-shrink: 0; }
+.entry-input-row { display: flex; gap: 0.4rem; align-items: stretch; }
+.entry-input-row textarea { flex: 1; min-height: 2.6rem; margin-top: 0 !important; }
+.btn-add-entry { border: 1px solid var(--jac-rich-black); background: var(--jac-rich-black); color: #fff; font-weight: 700; font-size: 0.7rem; text-transform: uppercase; padding: 0 0.8rem; border-radius: 4px; cursor: pointer; font-family: var(--jac-font-body); }
+.jac-stop-head-toggle { cursor: pointer; -webkit-user-select: none; user-select: none; }
+.jac-stop.collapsed .jac-stop-body { display: none; }
+.jac-stop-body { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--jac-grey-100); }
+.stop-pills { display: flex; gap: 0.4rem; margin-top: 0.55rem; flex-wrap: wrap; align-items: center; }
+.stop-pill { font-size: 0.65rem; font-weight: 700; padding: 0.22rem 0.55rem; border-radius: 2px; background: var(--jac-grey-100); color: var(--jac-medium-grey); letter-spacing: 0.03em; }
+.stop-pill.done { background: var(--jac-rich-black); color: var(--jac-pure-white); }
+.stop-chev { float: right; color: var(--jac-grey-400); font-size: 0.85rem; transition: transform 0.2s var(--jac-ease); margin-top: 0.2rem; }
+.jac-stop:not(.collapsed) .stop-chev { transform: rotate(180deg); }
+.btn-copy-store { border: 1px solid var(--jac-grey-300); background: #fff; font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.5rem 0.9rem; border-radius: 4px; cursor: pointer; font-family: var(--jac-font-body); }
+</style>
+<style>
+/* v07 sync-layer additions */
+body { padding-top: 1.8rem; }
+#sync-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 400; background: var(--jac-rich-black); color: #fff; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; padding: 0.4rem; }
+#sync-bar.warn { background: var(--jac-status-red); }
+#sync-bar.ok { background: var(--jac-status-green); }
+.entry.remote { background: var(--jac-grey-100); border-left: 3px solid var(--jac-grey-300); }
+.entry-author { font-size: var(--jac-text-caption); font-weight: 700; color: var(--jac-grey-500); text-transform: uppercase; margin-right: 0.3rem; }
+.other-score { font-size: var(--jac-text-caption); color: var(--jac-grey-500); margin-left: 0.4rem; white-space: nowrap; }
+#author-modal .jac-btn-map.sel { background: var(--jac-magenta); }
+@media (max-width: 768px) { body { padding-top: 2.2rem; } #sync-bar { font-size: 0.6rem; } }
+</style>
+</head>
+<body>
+<div id="sync-bar">Loading&hellip;</div>
+<div id="author-modal" style="position:fixed; inset:0; background:rgba(18,18,18,0.92); z-index:500; display:none; align-items:center; justify-content:center; padding:1.5rem;">
+  <div style="background:#fff; border-radius:8px; padding:1.75rem; max-width:22rem; width:100%;">
+    <p class="jac-eyebrow" style="margin-bottom:0.6rem;">WHO'S LOGGING?</p>
+    <p style="font-size:0.85rem; color:var(--jac-medium-grey); margin-bottom:1rem;">Your name is stamped on every entry and score so you and your colleague can tell them apart on the shared dataset. Set once per device.</p>
+    <input type="text" id="author-input" placeholder="Your name" style="width:100%; padding:0.6rem; border:1px solid var(--jac-grey-300); border-radius:6px; font-size:16px; margin-bottom:0.7rem; font-family:var(--jac-font-body);">
+    <div style="display:flex; gap:0.5rem; margin-bottom:0.7rem;">
+      <button onclick="setAuthorQuick('Jack')" class="jac-btn-map" style="flex:1; justify-content:center;">Jack</button>
+      <button onclick="setAuthorQuick('Michelle')" class="jac-btn-map" style="flex:1; justify-content:center;">Michelle</button>
+    </div>
+    <button onclick="confirmAuthor()" class="jac-btn-map-primary" style="width:100%; justify-content:center;">Start Scoring</button>
+  </div>
+</div>
+
+<!-- COVER -->
+<section id="cover" style="min-height: 46vh; display: flex; align-items: center; background: var(--jac-rich-black);">
+  <div class="jac-container" style="padding-top: var(--jac-space-2xl); padding-bottom: var(--jac-space-2xl);">
+    <p class="jac-eyebrow" style="color: var(--jac-grey-400); margin-bottom: var(--jac-space-md);">ACADEMY SPORTS &amp; OUTDOORS | CLEVELAND MARKET IMMERSION — FIELD TOOL v07</p>
+    <h1 class="jac-display" style="color: var(--jac-pure-white); font-size: var(--jac-text-hero); max-width: 42rem; margin-bottom: var(--jac-space-lg);">
+      Seven stores, one loop: <span class="jac-highlight">Cleveland's sporting goods</span> landscape in a day
+    </h1>
+    <p style="color: var(--jac-grey-300); max-width: 34rem;">
+      Monday, July 13, 2026 &middot; Home base: Fairfield Inn &amp; Suites, 5110 Tiedeman Rd, Brooklyn, OH &middot; Schedule up top; store sections below in any order. Scores autosave on this device. Note boxes are local drafts &mdash; they autosave as you type and survive everything &mdash; and tapping <b>Add</b> locks the draft as a timestamped entry, the safe record for export and sync. Photos and voice notes hold in memory until you export.
+    </p>
+  </div>
+</section>
+
+<!-- QUICK STATS -->
+<section class="jac-section jac-reveal">
+  <div class="jac-container">
+    <div class="jac-metrics">
+      <div><span class="jac-metric-value">7</span><span class="jac-metric-label">Stops, 6 banners</span></div>
+      <div><span class="jac-metric-value">2</span><span class="jac-metric-label">Academy locations</span></div>
+      <div><span class="jac-metric-value">~230</span><span class="jac-metric-label">Miles round trip</span></div>
+      <div><span class="jac-metric-value">~4h45</span><span class="jac-metric-label">Est. driving time</span></div>
+      <div><span class="jac-metric-value">8:00</span><span class="jac-metric-label">Depart hotel</span></div>
+      <div><span class="jac-metric-value">6:20</span><span class="jac-metric-label">Est. return</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- FULL ROUTE -->
+<section class="jac-section jac-reveal" style="background: var(--jac-soft-grey); text-align: center;">
+  <div class="jac-container">
+    <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-md);">ONE LINK, WHOLE DAY</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-subtitle); margin-bottom: var(--jac-space-lg);">Open the full seven-stop route in Google Maps</h2>
+    <a class="jac-btn-map-primary" href="https://www.google.com/maps/dir/Fairfield+by+Marriott+Inn+%26+Suites+Cleveland+Tiedeman+Road,+5110+Tiedeman+Rd,+Brooklyn,+OH+44144,+United+States/Academy+Sports+%2B+Outdoors,+1280+Doral+Dr,+Youngstown,+OH+44514,+United+States/Academy+Sports+%2B+Outdoors,+6687+Strip+Ave+NW,+North+Canton,+OH+44720,+United+States/REI,+411+Park+Ave+Suite+143,+Beachwood,+OH+44122,+United+States/DICK'S+House+of+Sport,+17271+Southpark+Center,+Strongsville,+OH+44136,+United+States/DICK'S+Sporting+Goods,+200+Great+Northern+Mall,+North+Olmsted,+OH+44070,+United+States/Dunham's+Sports,+4377+Midway+Mall,+Elyria,+OH+44035,+United+States/Cabela's,+35685+Chester+Rd,+Avon,+OH+44011,+United+States/Fairfield+by+Marriott+Inn+%26+Suites+Cleveland+Tiedeman+Road,+5110+Tiedeman+Rd,+Brooklyn,+OH+44144,+United+States/@41.1526525,-81.7007097,10z/data=!3m2!4b1!5s0x8830930b4a2762b9:0x7edf0a3a34b8a66c!4m56!4m55!1m5!1m1!1s0x8830ef32de4030a7:0x66865fd6cf24c5eb!2m2!1d-81.7620617!2d41.4223156!1m5!1m1!1s0x8833f1e9501e03d9:0x5ad3e84daf2b2732!2m2!1d-80.6309509!2d41.0298457!1m5!1m1!1s0x8836d7a324c3d6d5:0x45e44cbba3bf3153!2m2!1d-81.4348762!2d40.878404!1m5!1m1!1s0x883102cea307169f:0x76b2a5eab0441542!2m2!1d-81.486977!2d41.4511287!1m5!1m1!1s0x8830c1d662f59e7f:0x81d7a0105271a57a!2m2!1d-81.8222911!2d41.3078828!1m5!1m1!1s0x8830930a7e364c6f:0x65d9eda836312076!2m2!1d-81.9063875!2d41.4180469!1m5!1m1!1s0x883099418f4ba553:0xcc562fb11d3d352e!2m2!1d-82.1109217!2d41.3973679!1m5!1m1!1s0x88309038d0ec98bf:0xbf02fae1eec1c816!2m2!1d-82.0129968!2d41.465467!1m5!1m1!1s0x8830ef32de4030a7:0x66865fd6cf24c5eb!2m2!1d-81.7620617!2d41.4223156!3e0?entry=ttu" target="_blank" rel="noopener">Open Full Route &rarr;</a>
+    <p style="font-size: var(--jac-text-small); color: var(--jac-medium-grey); margin-top: var(--jac-space-md);">For CarPlay, tap the individual 'Navigate' link on each leg as you go.</p>
+  </div>
+</section>
+
+<!-- ITINERARY (schedule reference only) -->
+<section id="itinerary" class="jac-section jac-reveal">
+  <div class="jac-container">
+    <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">THE SCHEDULE</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-sm);">Boardman first &mdash; the farthest stop, while you're fresh</h2>
+    <p style="color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-lg);">Times are the plan, not the rule &mdash; store sections below aren't tied to this order. Cabela's is the flex cut if the day runs long; every mission-critical stop survives without it.</p>
+
+    <div class="itin-row"><span class="itin-time">9:15 &ndash; 10:05 AM</span><span class="itin-name">Academy Sports + Outdoors &mdash; Boardman</span><a href="https://www.google.com/maps/dir/?api=1&destination=1280+Doral+Dr,+Youngstown,+OH+44514&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">Depart hotel 8:00 AM &middot; ~75 min drive (I-77 S / I-76 E)</span></div>
+    <div class="itin-row"><span class="itin-time">11:00 &ndash; 11:45 AM</span><span class="itin-name">Academy Sports + Outdoors &mdash; North Canton</span><a href="https://www.google.com/maps/dir/?api=1&destination=6687+Strip+Ave+NW,+North+Canton,+OH+44720&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~55 min drive from Boardman (US-30 W)</span></div>
+    <div class="itin-row"><span class="itin-time">12:30 &ndash; 1:15 PM</span><span class="itin-name">REI + Nike walk-in &mdash; Pinecrest, Beachwood</span><a href="https://www.google.com/maps/dir/?api=1&destination=411+Park+Ave,+Beachwood,+OH+44122&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~50 min drive up I-77 N / I-271 N &middot; one parking lot, two doors</span></div>
+    <div class="itin-row" style="background: var(--jac-soft-grey); border-radius: 6px; padding-left: 0.6rem; padding-right: 0.6rem;"><span class="itin-time">1:45 &ndash; 2:25 PM</span><span class="itin-name">Lunch &mdash; SouthPark Mall, Strongsville <span class="jac-tag jac-tag-lunch" style="margin-left: 0.4rem;">Lunch</span></span><a href="https://www.google.com/maps/search/?api=1&query=restaurants+near+SouthPark+Mall+Strongsville+OH" target="_blank" rel="noopener">Options &rarr;</a><span class="itin-drive">~30 min drive from Pinecrest (I-271 S / I-80 W) &middot; Bravo, Chipotle, Panera next to the next stop</span></div>
+    <div class="itin-row"><span class="itin-time">2:25 &ndash; 3:20 PM</span><span class="itin-name">Dick's House of Sport &mdash; Strongsville</span><a href="https://www.google.com/maps/dir/?api=1&destination=17271+Southpark+Center,+Strongsville,+OH+44136&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">Same lot as lunch &mdash; walk over after eating</span></div>
+    <div class="itin-row"><span class="itin-time">3:40 &ndash; 4:20 PM</span><span class="itin-name">Dick's Sporting Goods &mdash; North Olmsted</span><a href="https://www.google.com/maps/dir/?api=1&destination=200+Great+Northern+Mall,+North+Olmsted,+OH+44070&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~20 min drive from Strongsville</span></div>
+    <div class="itin-row"><span class="itin-time">4:40 &ndash; 4:55 PM</span><span class="itin-name">Dunham's Sports &mdash; Elyria (drive-through)</span><a href="https://www.google.com/maps/dir/?api=1&destination=4377+Midway+Mall,+Elyria,+OH+44035&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~18 min drive from North Olmsted (I-480 W) &middot; quick scores + one thing</span></div>
+    <div class="itin-row"><span class="itin-time">5:10 &ndash; 5:55 PM</span><span class="itin-name">Cabela's &mdash; Avon</span><a href="https://www.google.com/maps/dir/?api=1&destination=35685+Chester+Rd,+Avon,+OH+44011&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~15 min drive from Elyria (OH-611 / I-90 E) &middot; flex cut: skip for a ~5:20 finish</span></div>
+    <div class="itin-row" style="border-bottom: none;"><span class="itin-time">~6:20 PM</span><span class="itin-name" style="color: var(--jac-medium-grey);">Return to hotel</span><a href="https://www.google.com/maps/dir/?api=1&destination=5110+Tiedeman+Rd,+Brooklyn,+OH+44144&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~25 min drive from Avon (I-90 E)</span></div>
+  </div>
+</section>
+
+<!-- STORES -->
+<section id="stores" class="jac-section jac-reveal" style="background: var(--jac-soft-grey);">
+  <div class="jac-container">
+    <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">THE STORES</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-sm);">One section per store &mdash; any order</h2>
+    <p style="color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-lg);">Quick scores on arrival, lens notes as you walk, The One Thing on the way out. Type freely &mdash; drafts autosave locally and are never lost. Tap <b>Add</b> when a thought is done to lock it as a timestamped entry; entries are append-only and never overwritten, so saved data is always safe. Tap a store to open it &mdash; one open at a time keeps you honest about which store you\u2019re scoring. Pass something worth seeing? Add it below.</p>
+    <div id="store-list"></div>
+    <div class="add-store">
+      <button class="jac-btn-map" onclick="toggleAddForm()">+ Add a Store</button>
+      <div class="add-form" id="add-form">
+        <span class="qs-label">New store</span>
+        <input type="text" id="add-name" placeholder="Store name — e.g. Golf Galaxy, Mayfield Heights">
+        <div class="typerow">
+          <button id="type-academy" onclick="setAddType('academy')">Academy</button>
+          <button id="type-competitor" class="sel" onclick="setAddType('competitor')">Competitor</button>
+        </div>
+        <input type="text" id="add-address" placeholder="Address (optional — enables Navigate link)">
+        <button class="jac-btn-map" onclick="addStore()">Create Store Section</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARE -->
+<section id="compare" class="jac-section jac-reveal">
+  <div class="jac-container">
+    <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">END OF DAY</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-lg);">The comparison matrix</h2>
+    <div class="cmp-wrap"><table id="cmp-table"></table></div>
+    <p style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-top: var(--jac-space-sm);">Green = highest in row &middot; red = lowest &middot; C = creative lens &middot; S = strategy lens. Refreshes as you score.</p>
+  </div>
+</section>
+
+<footer style="padding: var(--jac-space-xl) 0; text-align: center;">
+  <p style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--jac-medium-grey);">Jackman Reinvention Inc. All Rights Reserved.</p>
+</footer>
+
+<div class="action-bar">
+  <button class="btn-outline" id="clear-btn">Clear All</button>
+  <button class="btn-dark" id="copy-summary-btn">Copy Summary</button>
+  <button class="btn-dark" id="copy-csv-btn">Copy CSV</button>
+  <button class="btn-magenta" id="export-btn">Export All (.zip)</button>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ================= FRAMEWORK =================
+const QUICK = [
+  { id: 'gut', name: 'Gut Read', hint: 'First 30 seconds — what does this store think of its customer?' },
+  { id: 'assort', name: 'Assortment', hint: 'Breadth, curation, local relevance — is the range right and distinctive?' },
+  { id: 'nav', name: 'Navigation & Findability', hint: 'Sightlines, wayfinding, could you find a specific item unaided?' },
+  { id: 'insp', name: 'Inspiration', hint: 'Does it make you want something you didn\u2019t come for?' }
+];
+const LENSES = {
+  creative: { label: 'Creative', dims: [
+    { id: 'design', name: 'Store Design & Environment', hints: 'Arrival moment · sightlines and findability · layout and flow · lighting, materials, fixtures · dwell moments and energy' },
+    { id: 'brand', name: 'Brand Expression', hints: 'Does the brand idea show up in-store? · personality and tone · private brand presentation · exterior-to-interior consistency' },
+    { id: 'comms', name: 'Communications & Signage', hints: 'Hierarchy and clarity · promo vs. brand voice balance · category storytelling · localisation' },
+    { id: 'mktg', name: 'Marketing Integration', hints: 'Loyalty and app presence · campaign tie-ins · visible BOPIS, screens, QR usage · community hooks' } ] },
+  strategy: { label: 'Strategy', dims: [
+    { id: 'customer', name: 'Customer & Experience', hints: 'Who is actually shopping here? · basket behaviour · staff interaction and services offered — try to get helped · friction points' },
+    { id: 'value', name: 'Value Proposition & Pricing', hints: 'Price perception and clarity · promo depth and mechanics · good-better-best architecture · private label price gap' },
+    { id: 'ops', name: 'Operations & Execution', hints: 'In-stock and inventory health · BOPIS / omni execution · store standards and recovery · labour deployment' },
+    { id: 'comp', name: 'Competitive Positioning', hints: 'What does this store do that Academy can\u2019t? · vulnerability Academy can attack · prioritized divisions — who gets the best real estate · differentiation' } ] }
+};
+const BUILTIN = [
+  { id: 'academy-boardman', type: 'academy', name: 'Academy Sports + Outdoors — Boardman', address: '1280 Doral Dr, Youngstown, OH 44514',
+    lookfor: ['How this store compares to North Canton — same banner, different market: layout, assortment, or format differences', 'Any regional tweaks (hunting license counter, local team fan shop, Youngstown-area sports ties)', 'Whether the newer-opened store (2025) shows a refreshed format vs. older Academy locations'] },
+  { id: 'academy-northcanton', type: 'academy', name: 'Academy Sports + Outdoors — North Canton', address: '6687 Strip Ave NW, North Canton, OH 44720',
+    lookfor: ['Assortment mix across hunt/fish, team sports, and apparel — what gets the most floor space', 'Private label presence (Magellan Outdoors, BCG, Freely) and how it\u2019s priced and shelved against national brands', 'Footwear wall depth and brand mix', 'Price architecture and promotional signage', 'Staffing model and service level on a weekday morning'] },
+  { id: 'rei-pinecrest', type: 'competitor', name: 'REI + Nike walk-in — Pinecrest', address: '411 Park Ave Suite 143, Beachwood, OH 44122',
+    lookfor: ['Co-op membership presentation — how loyalty shows up in-store vs. myAcademy\u2019s discount-led model', 'Re/Supply used gear section — resale as brand equity, condition grading, pricing', 'Bike/ski service shop standard vs. Academy\u2019s own in-store services', 'Staff expertise and community programming (classes, events board)', 'Nike small-format next door (15-min walk-in): how Nike presents itself vs. how it shows up in Academy\u2019s box this morning'] },
+  { id: 'dhos-strongsville', type: 'competitor', name: 'Dick\u2019s House of Sport — Strongsville', address: '17271 Southpark Center, Strongsville, OH 44136',
+    lookfor: ['Experiential zones — batting cages, golf simulators, climbing wall, track — and how they drive dwell on a weekday', 'Premium brand shop-in-shops vs. the general floor', 'Digital and loyalty touchpoints (kiosks, app prompts, BOPIS pickup area)', 'Assortment depth vs. a standard-format Dick\u2019s box (today\u2019s next stop)', 'Footwear fit and test areas (treadmill, turf)'] },
+  { id: 'dicks-northolmsted', type: 'competitor', name: 'Dick\u2019s Sporting Goods — North Olmsted', address: '200 Great Northern Mall, North Olmsted, OH 44070',
+    lookfor: ['Standard-format assortment vs. today\u2019s House of Sport visit — what gets cut at this size', 'Local team and fan shop presence (Guardians, Browns, Cavaliers)', 'In-store services: bike, ski, or golf club fitting counters'] },
+  { id: 'dunhams-elyria', type: 'competitor', name: 'Dunham\u2019s Sports — Elyria (drive-through)', address: '4377 Midway Mall, Elyria, OH 44035',
+    lookfor: ['15-min walk-through: quick scores + one thing only', 'Value floor of the competitive set — the store Academy has to out-experience at the same price point', 'Price positioning and promo mechanics relative to Academy', 'Legacy hunt/fish/team sports weighting on a smaller floor'] },
+  { id: 'cabelas-avon', type: 'competitor', name: 'Cabela\u2019s — Avon', address: '35685 Chester Rd, Avon, OH 44011',
+    lookfor: ['FLEX CUT: skip if the day runs long — every mission-critical stop survives without it', 'Immersive outdoor theatre — mountain replica, aquarium, archery test lane — next to Academy\u2019s functional outdoor', 'Outfitter staffing model: passion hires, category expertise', 'Boat Shop, Gun Library — destination category authority', 'What of this translates at Academy\u2019s capex reality, and what doesn\u2019t'] }
+];
+
+// ================= SAFE STORAGE + MIGRATION =================
+const KEY = 'cle_immersion_v6';
+let memFallback = null;
+function nowT() { return Date.now(); }
+function loadState() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+    // migrate v4 (same structure: entries + drafts)
+    const v4raw = localStorage.getItem('cle_immersion_v4');
+    if (v4raw) { const v4 = JSON.parse(v4raw); if (!v4.drafts) v4.drafts = {}; return v4; }
+    // migrate v5 (living notes) -> notes become drafts awaiting Save
+    const v5raw = localStorage.getItem('cle_immersion_v5');
+    if (v5raw) {
+      const v5 = JSON.parse(v5raw);
+      const mig = { stores: {}, custom: v5.custom || [], lens: v5.lens || {}, drafts: {} };
+      Object.entries(v5.stores || {}).forEach(([id, s]) => {
+        mig.stores[id] = { quick: s.quick || {}, creative: { scores: (s.creative||{}).scores || {}, notes: {} }, strategy: { scores: (s.strategy||{}).scores || {}, notes: {} }, killer: [] };
+        mig.drafts[id] = {};
+        ['creative','strategy'].forEach(l => Object.entries((s[l]||{}).notes || {}).forEach(([d, n]) => { if (n && n.text && n.text.trim()) mig.drafts[id][d] = n.text; }));
+        if (s.killer && s.killer.text && s.killer.text.trim()) mig.drafts[id].killer = s.killer.text;
+      });
+      return mig;
+    }
+    // migrate v3 (single-string notes) if present
+    const old = localStorage.getItem('cle_immersion_v3');
+    if (old) {
+      const v3 = JSON.parse(old);
+      const migrated = { stores: {}, custom: v3.custom || [], lens: v3.lens || {} };
+      Object.entries(v3.stores || {}).forEach(([id, s]) => {
+        const m = { quick: s.quick || {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
+        ['creative', 'strategy'].forEach(l => {
+          m[l].scores = (s[l] && s[l].scores) || {};
+          Object.entries((s[l] && s[l].notes) || {}).forEach(([d, txt]) => { if (txt) m[l].notes[d] = [{ t: nowT(), text: txt }]; });
+        });
+        if (s.killer) m.killer = [{ t: nowT(), text: s.killer }];
+        migrated.stores[id] = m;
+      });
+      migrated.drafts = {};
+      return migrated;
+    }
+  } catch (e) {}
+  return memFallback || { stores: {}, custom: [], lens: {}, drafts: {} };
+}
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { memFallback = state; }
+}
+let state = loadState();
+if (!state.drafts) state.drafts = {};
+if (!state.openId) state.openId = null;
+if (!state.scoreMeta) state.scoreMeta = {};
+if (!state.deletedIds) state.deletedIds = [];
+const photoState = {};
+const audioState = {};
+
+// ================= SYNC: CONFIG + AUTHOR =================
+const API_BASE = '/api';
+const AUTHOR_KEY = 'cle_immersion_author';
+const REMOTE_CACHE_KEY = 'cle_immersion_remote_cache';
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16);
+  });
+}
+function getAuthor() { try { return localStorage.getItem(AUTHOR_KEY) || ''; } catch (e) { return ''; } }
+function setAuthor(name) { try { localStorage.setItem(AUTHOR_KEY, name); } catch (e) {} }
+function scoreSlot(storeId, key) { const s = ensure(storeId); const [g, id] = key.split('.'); return g === 'quick' ? s.quick : s[g].scores; }
+function getLocalScore(storeId, key) { return scoreSlot(storeId, key)[key.split('.')[1]]; }
+
+function allStores() { return [...BUILTIN, ...state.custom]; }
+function hydrateEntries(list) {
+  if (!Array.isArray(list)) return;
+  const me = getAuthor();
+  list.forEach(e => { if (!e.id) e.id = uuid(); if (!e.author) e.author = me || ''; if (e.synced === undefined) e.synced = false; });
+}
+function ensure(id) {
+  if (!state.stores[id]) state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
+  const s = state.stores[id];
+  if (!Array.isArray(s.killer)) s.killer = s.killer ? [{ t: nowT(), text: s.killer }] : [];
+  if (!state.lens[id]) state.lens[id] = 'creative';
+  if (!state.drafts[id]) state.drafts[id] = {};
+  if (!state.scoreMeta[id]) state.scoreMeta[id] = {};
+  if (!photoState[id]) photoState[id] = [];
+  if (!audioState[id]) audioState[id] = [];
+  hydrateEntries(s.killer);
+  ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(hydrateEntries));
+  return s;
+}
+function draftOf(id, dim) { return (state.drafts[id] || {})[dim] || ''; }
+function updateDraft(id, dim, v) { ensure(id); state.drafts[id][dim] = v; persist(); }
+function fmtTime(t) { return new Date(t).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' }); }
+
+// ================= RENDER =================
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ratingRow(cur, cbPrefix) {
+  return '<div class="rating">' + [1,2,3,4,5].map(n =>
+    '<button class="' + (cur === n ? 'active' : '') + '" onclick="' + cbPrefix + n + ')">' + n + '</button>').join('') + '</div>';
+}
+function mergedEntries(storeId, groupKey, dimId, localList) {
+  const localIds = new Set((localList || []).map(e => e.id));
+  const remoteList = (((remoteEntries[storeId] || {})[groupKey] || {})[dimId] || [])
+    .filter(e => !localIds.has(e.id) && state.deletedIds.indexOf(e.id) === -1);
+  const items = [];
+  (localList || []).forEach((e, i) => items.push({ e, i, remote: false }));
+  remoteList.forEach(e => items.push({ e, i: -1, remote: true }));
+  items.sort((a, b) => a.e.t - b.e.t);
+  return items;
+}
+function entriesHTML(storeId, groupKey, dimId, localList, delPrefix) {
+  const me = getAuthor();
+  const items = mergedEntries(storeId, groupKey, dimId, localList);
+  if (!items.length) return '';
+  return '<div class="entries">' + items.map(it => {
+    const e = it.e;
+    const authorTag = (e.author && e.author !== me) ? '<span class="entry-author">' + esc(e.author) + '</span>' : '';
+    const delBtn = it.remote ? '' : '<button class="x" onclick="' + delPrefix + it.i + ')">&times;</button>';
+    return '<div class="entry' + (it.remote ? ' remote' : '') + '"><span class="entry-time">' + fmtTime(e.t) + '</span>' + authorTag + '<span class="entry-text">' + esc(e.text) + '</span>' + delBtn + '</div>';
+  }).join('') + '</div>';
+}
+function renderStores() {
+  const el = document.getElementById('store-list');
+  el.innerHTML = allStores().map(store => {
+    const s = ensure(store.id), lens = state.lens[store.id];
+    const nav = store.address ? '<a class="jac-btn-map" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(store.address) + '&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a>' : '';
+    const lookfor = store.lookfor && store.lookfor.length ? '<details class="jac-details"><summary>What to look for <span class="jac-chevron">&#9662;</span></summary><ul>' + store.lookfor.map(l => '<li>' + l + '</li>').join('') + '</ul></details>' : '';
+    const isOpen = state.openId === store.id;
+    return '<div class="jac-stop ' + (isOpen ? '' : 'collapsed') + '" id="card-' + store.id + '">' +
+      '<div class="jac-stop-head-toggle" onclick="toggleCard(\'' + store.id + '\')">' +
+        '<span class="stop-chev">\u25BC</span>' +
+        '<div class="jac-stop-header"><span class="jac-tag jac-tag-' + store.type + '">' + (store.type === 'academy' ? 'Academy' : 'Competitor') + '</span><span class="jac-stop-name">' + esc(store.name) + '</span></div>' +
+        (store.address ? '<p class="jac-stop-meta" style="margin-bottom:0;">' + esc(store.address) + '</p>' : '') +
+        progressPills(store.id) +
+      '</div>' +
+      '<div class="jac-stop-body">' +
+      nav + lookfor +
+      '<div class="quick-scores"><span class="qs-label">Quick scores — tap on arrival</span>' +
+      QUICK.map(q => {
+        const oLabel = otherScoreLabel(store.id, 'quick.' + q.id);
+        return '<div class="qs-row"><span class="qs-name">' + q.name + '</span>' +
+        ratingRow(s.quick[q.id], "setQuick('" + store.id + "','" + q.id + "',") +
+        (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
+        '</div><div class="qs-hint">' + q.hint + '</div>';
+      }).join('') + '</div>' +
+      '<div class="lens-tabs">' +
+        '<button class="' + (lens === 'creative' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'creative\')">Creative</button>' +
+        '<button class="' + (lens === 'strategy' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'strategy\')">Strategy</button>' +
+      '</div>' +
+      LENSES[lens].dims.map(d => {
+        const sc = s[lens].scores[d.id];
+        const oLabel = otherScoreLabel(store.id, lens + '.' + d.id);
+        return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
+        ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
+        (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
+        entriesHTML(store.id, lens, d.id, s[lens].notes[d.id], "delEntry('" + store.id + "','" + d.id + "',") +
+        '<div class="entry-input-row"><textarea id="in-' + store.id + '-' + d.id + '" placeholder="Draft\u2026 autosaves. Keyboard mic to dictate. Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'' + d.id + '\',this.value)">' + esc(draftOf(store.id, d.id)) + '</textarea>' +
+        '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'' + d.id + '\')">Add</button></div></div>';
+      }).join('') +
+      '<div class="killer"><span class="qs-label">The One Thing</span>' +
+      '<div style="font-size: var(--jac-text-caption); color: var(--jac-grey-500); margin-bottom: 0.4rem;">If you told the c-suite one thing about this store, what would it be?</div>' +
+      entriesHTML(store.id, 'one_thing', 'killer', s.killer, "delKiller('" + store.id + "',") +
+      '<div class="entry-input-row"><textarea id="in-' + store.id + '-killer" placeholder="Draft a takeaway\u2026 Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'killer\',this.value)">' + esc(draftOf(store.id, 'killer')) + '</textarea>' +
+      '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'killer\')">Add</button></div></div>' +
+      '<div class="capture-row">' +
+        '<button class="jac-btn-rec" id="rec-' + store.id + '" onclick="toggleRec(\'' + store.id + '\')">&#9679; Voice Note</button>' +
+        '<label class="photo-input-label">&#128247; Add Photos<input type="file" accept="image/*" capture="environment" multiple onchange="addPhotos(\'' + store.id + '\', this)"></label>' +
+        '<button class="btn-copy-store" onclick="copyStore(\'' + store.id + '\')">Copy This Store\u2019s Notes</button>' +
+      '</div>' +
+      '<div class="clips" id="clips-' + store.id + '"></div>' +
+      '<div class="thumbs" id="thumbs-' + store.id + '"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  allStores().forEach(st => { renderClips(st.id); renderThumbs(st.id); });
+  renderCompare();
+}
+function renderThumbs(id) {
+  const el = document.getElementById('thumbs-' + id); if (!el) return;
+  el.innerHTML = photoState[id].map((p, i) =>
+    '<div class="thumb"><img src="' + p + '"><button class="x" onclick="delPhoto(\'' + id + '\',' + i + ')">&times;</button></div>').join('');
+}
+function renderClips(id) {
+  const el = document.getElementById('clips-' + id); if (!el) return;
+  el.innerHTML = audioState[id].map((a, i) =>
+    '<div class="clip"><audio controls src="' + a.dataUrl + '"></audio><span style="font-size: var(--jac-text-caption); color: var(--jac-grey-400);">Voice note ' + (i + 1) + ' \u00b7 ' + fmtTime(a.t) + '</span><button class="x" onclick="delClip(\'' + id + '\',' + i + ')">&times;</button></div>').join('');
+}
+
+// ================= MUTATIONS =================
+function setQuick(id, q, n) { const s = ensure(id); s.quick[q] = s.quick[q] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, 'quick.' + q); }
+function setDim(id, d, n) { const s = ensure(id), l = state.lens[id]; s[l].scores[d] = s[l].scores[d] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, l + '.' + d); }
+function setLensTab(id, l) { state.lens[id] = l; persist(); renderStores(); }
+function toggleCard(id) {
+  state.openId = state.openId === id ? null : id;
+  persist(); renderStores();
+  if (state.openId === id) {
+    const card = document.getElementById('card-' + id);
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+function pill(label, val, done) { return '<span class="stop-pill ' + (done ? 'done' : '') + '">' + label + ' ' + val + '</span>'; }
+function progressPills(id) {
+  const s = ensure(id);
+  const qVals = QUICK.map(q => effectiveScore(id, 'quick.' + q.id)).filter(v => v !== null && v !== undefined);
+  const qAvg = qVals.length ? qVals.reduce((a,b)=>a+b,0) / qVals.length : null;
+  const ca = lensAvg(id, 'creative'), sa = lensAvg(id, 'strategy');
+  const cN = LENSES.creative.dims.reduce((sum, d) => sum + mergedEntries(id, 'creative', d.id, s.creative.notes[d.id]).length, 0);
+  const sN = LENSES.strategy.dims.reduce((sum, d) => sum + mergedEntries(id, 'strategy', d.id, s.strategy.notes[d.id]).length, 0);
+  const oneThingDone = mergedEntries(id, 'one_thing', 'killer', s.killer).length > 0;
+  const fmt = v => v !== null ? String(Math.round(v * 10) / 10) : '\u2013';
+  return '<div class="stop-pills">' +
+    pill('Q', fmt(qAvg), qVals.length === QUICK.length) +
+    pill('C', fmt(ca) + (cN ? ' \u00b7 \u270E ' + cN : ''), ca !== null) +
+    pill('S', fmt(sa) + (sN ? ' \u00b7 \u270E ' + sN : ''), sa !== null) +
+    (oneThingDone ? pill('1T', '\u2713', true) : '') +
+    '</div>';
+}
+function addEntry(id, dim) {
+  const ta = document.getElementById('in-' + id + '-' + dim);
+  const text = (ta.value || '').trim();
+  if (!text) { toast('Nothing to save yet — type or dictate first'); return; }
+  const s = ensure(id);
+  const entry = { id: uuid(), t: nowT(), text, author: getAuthor() || 'Unknown', synced: false };
+  if (dim === 'killer') s.killer.push(entry);
+  else {
+    const l = state.lens[id];
+    if (!s[l].notes[dim]) s[l].notes[dim] = [];
+    s[l].notes[dim].push(entry);
+  }
+  delete state.drafts[id][dim];
+  persist(); renderStores(); toast('Entry locked ' + fmtTime(nowT()));
+  pushEntryNow(id, dim, entry);
+}
+function delEntry(id, dim, i) {
+  if (!confirm('Remove this entry?')) return;
+  const l = state.lens[id];
+  const removed = ensure(id)[l].notes[dim].splice(i, 1)[0];
+  if (removed && removed.id) state.deletedIds.push(removed.id);
+  persist(); renderStores();
+}
+function delKiller(id, i) {
+  if (!confirm('Remove this entry?')) return;
+  const removed = ensure(id).killer.splice(i, 1)[0];
+  if (removed && removed.id) state.deletedIds.push(removed.id);
+  persist(); renderStores();
+}
+function delPhoto(id, i) { if (confirm('Remove photo?')) { photoState[id].splice(i, 1); renderThumbs(id); } }
+function delClip(id, i) { if (confirm('Remove voice note?')) { audioState[id].splice(i, 1); renderClips(id); } }
+
+// ================= ADD STORE =================
+let addType = 'competitor';
+function toggleAddForm() { document.getElementById('add-form').classList.toggle('open'); }
+function setAddType(t) { addType = t;
+  document.getElementById('type-academy').classList.toggle('sel', t === 'academy');
+  document.getElementById('type-competitor').classList.toggle('sel', t === 'competitor'); }
+function addStore() {
+  const name = document.getElementById('add-name').value.trim();
+  if (!name) { toast('Give the store a name first'); return; }
+  const address = document.getElementById('add-address').value.trim();
+  const id = 'custom-' + Date.now();
+  state.custom.push({ id, type: addType, name, address, lookfor: [] });
+  ensure(id); state.openId = id; persist();
+  document.getElementById('add-name').value = ''; document.getElementById('add-address').value = '';
+  toggleAddForm(); renderStores();
+  const card = document.getElementById('card-' + id);
+  if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth' });
+  toast('Store added');
+}
+
+// ================= PHOTOS =================
+function addPhotos(id, input) {
+  [...input.files].forEach(f => {
+    const r = new FileReader();
+    r.onload = e => { const img = new Image(); img.onload = () => {
+      const max = 1280, sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = img.width * sc; c.height = img.height * sc;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      photoState[id].push(c.toDataURL('image/jpeg', 0.72)); renderThumbs(id);
+    }; img.src = e.target.result; };
+    r.readAsDataURL(f);
+  });
+  input.value = '';
+}
+
+// ================= VOICE NOTES =================
+let mediaRec = null, recChunks = [], recStoreId = null;
+function pickMime() {
+  const opts = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+  for (const m of opts) { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m; }
+  return '';
+}
+async function toggleRec(id) {
+  if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Voice recording unsupported in this browser'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = pickMime();
+    mediaRec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recChunks = []; recStoreId = id;
+    mediaRec.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+    mediaRec.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(recChunks, { type: mediaRec.mimeType || 'audio/mp4' });
+      const r = new FileReader();
+      r.onload = e => { audioState[recStoreId].push({ dataUrl: e.target.result, mime: blob.type, t: nowT() }); renderClips(recStoreId); toast('Voice note saved — export at EOD to keep it'); };
+      r.readAsDataURL(blob);
+      const btn = document.getElementById('rec-' + recStoreId);
+      if (btn) { btn.classList.remove('recording'); btn.innerHTML = '&#9679; Voice Note'; }
+      mediaRec = null;
+    };
+    mediaRec.start();
+    const btn = document.getElementById('rec-' + id);
+    btn.classList.add('recording'); btn.innerHTML = '&#9632; Stop Recording';
+    toast('Recording\u2026 tap again to stop');
+  } catch (err) { toast('Mic blocked — allow microphone access in browser settings'); }
+}
+
+// ================= COMPARE =================
+function lensAvg(id, l) { const v = LENSES[l].dims.map(d => effectiveScore(id, l + '.' + d.id)).filter(x => x !== null && x !== undefined); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; }
+function renderCompare() {
+  const scored = allStores().filter(st => { const s = ensure(st.id);
+    return Object.values(s.quick).some(Boolean) || Object.values(s.creative.scores).some(Boolean) || Object.values(s.strategy.scores).some(Boolean) ||
+      (remoteScores[st.id] && Object.keys(remoteScores[st.id]).length); });
+  const tbl = document.getElementById('cmp-table');
+  if (!scored.length) { tbl.innerHTML = '<tr><td style="text-align:center; padding: 1.5rem; color: var(--jac-grey-400);">Score a store and the matrix builds itself.</td></tr>'; return; }
+  const shortName = n => n.replace('Academy Sports + Outdoors', 'Academy').replace('Dick\u2019s House of Sport', 'HOS').replace('Dick\u2019s Sporting Goods', 'Dick\u2019s').replace(' (drive-through)', '').split('\u2014').map(x => x.trim());
+  let html = '<tr><th>Dimension</th>' + scored.map(st => { const p = shortName(st.name);
+    return '<th>' + esc(p[1] || p[0]) + '<br><span style="font-weight:400">' + esc(p[1] ? p[0] : '') + '</span></th>'; }).join('') + '</tr>';
+  function row(label, vals, grp) {
+    const nums = vals.filter(v => v !== null && v !== undefined);
+    const hi = nums.length > 1 ? Math.max(...nums) : null, lo = nums.length > 1 ? Math.min(...nums) : null;
+    return '<tr' + (grp ? ' class="grp"' : '') + '><td>' + label + '</td>' + vals.map(v => {
+      let cls = ''; if (v != null && hi !== lo) { if (v === hi) cls = 'hi'; else if (v === lo) cls = 'lo'; }
+      return '<td class="' + cls + '">' + (v != null ? (Math.round(v * 10) / 10) : '&ndash;') + '</td>'; }).join('') + '</tr>';
+  }
+  html += '<tr class="grp"><td colspan="' + (scored.length + 1) + '">QUICK SCORES</td></tr>';
+  QUICK.forEach(q => { html += row(q.name, scored.map(st => effectiveScore(st.id, 'quick.' + q.id))); });
+  ['creative', 'strategy'].forEach(l => {
+    html += row(LENSES[l].label.toUpperCase() + ' AVG', scored.map(st => lensAvg(st.id, l)), true);
+    LENSES[l].dims.forEach(d => { html += row(d.name, scored.map(st => effectiveScore(st.id, l + '.' + d.id))); });
+  });
+  tbl.innerHTML = html;
+}
+
+// ================= EXPORT BUILDERS =================
+function stampFile() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes());
+}
+function storeText(st) {
+  const s = ensure(st.id);
+  let out = '==================================================\n' + st.name.toUpperCase() + '\n' + (st.address || '') + '\nExported: ' + new Date().toLocaleString('en-CA') + '\n==================================================\n';
+  const kDraft = draftOf(st.id, 'killer');
+  if (s.killer.length || (kDraft && kDraft.trim())) { out += '\nTHE ONE THING:\n'; s.killer.forEach(e => out += '  [' + fmtTime(e.t) + '] ' + e.text + '\n'); if (kDraft && kDraft.trim()) out += '  [draft — not yet saved] ' + kDraft.trim() + '\n'; }
+  out += '\nQUICK SCORES:\n';
+  QUICK.forEach(q => { out += '  ' + q.name + ': ' + (s.quick[q.id] ? s.quick[q.id] + '/5' : 'not scored') + '\n'; });
+  ['creative', 'strategy'].forEach(l => {
+    const avg = lensAvg(st.id, l);
+    out += '\n--- ' + LENSES[l].label.toUpperCase() + ' LENS' + (avg !== null ? ' \u2014 avg ' + avg.toFixed(1) + '/5' : '') + ' ---\n';
+    LENSES[l].dims.forEach(dim => {
+      const sc = s[l].scores[dim.id], entries = s[l].notes[dim.id] || [];
+      out += '\n' + dim.name + ': ' + (sc ? sc + '/5' : 'not scored') + '\n';
+      entries.forEach(e => out += '  [' + fmtTime(e.t) + '] ' + e.text + '\n');
+      const dr = draftOf(st.id, dim.id);
+      if (dr && dr.trim()) out += '  [draft — not yet saved] ' + dr.trim() + '\n';
+    });
+  });
+  out += '\nPhotos: ' + photoState[st.id].length + ' \u00b7 Voice notes: ' + audioState[st.id].length + '\n\n';
+  return out;
+}
+function buildText() {
+  let out = 'CLEVELAND MARKET IMMERSION \u2014 STORE TOUR NOTES\nJackman \u00b7 exported ' + new Date().toLocaleString('en-CA') + '\nLenses: Creative + Strategy (shared)\n\n';
+  allStores().forEach(st => {
+    const s = ensure(st.id);
+    const hasData = Object.values(s.quick).some(Boolean) || Object.values(s.creative.scores).some(Boolean) || Object.values(s.strategy.scores).some(Boolean) || s.killer.length ||
+      Object.values(s.creative.notes).some(a => a && a.length) || Object.values(s.strategy.notes).some(a => a && a.length) ||
+      Object.values(state.drafts[st.id] || {}).some(v => v && v.trim());
+    if (hasData) out += storeText(st);
+  });
+  return out;
+}
+function buildCSV() {
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const stores = allStores();
+  let rows = [['Dimension', 'Group', ...stores.map(s => s.name)].map(q).join(',')];
+  QUICK.forEach(k => rows.push([k.name, 'Quick', ...stores.map(st => ensure(st.id).quick[k.id] ?? '')].map(q).join(',')));
+  ['creative', 'strategy'].forEach(l => {
+    rows.push([LENSES[l].label + ' avg', LENSES[l].label, ...stores.map(st => { const a = lensAvg(st.id, l); return a !== null ? a.toFixed(2) : ''; })].map(q).join(','));
+    LENSES[l].dims.forEach(d => rows.push([d.name, LENSES[l].label, ...stores.map(st => ensure(st.id)[l].scores[d.id] ?? '')].map(q).join(',')));
+  });
+  rows.push(''); rows.push(['Store', 'Field', 'Timestamp', 'Content'].map(q).join(','));
+  stores.forEach(st => {
+    const s = ensure(st.id);
+    s.killer.forEach(e => rows.push([st.name, 'The One Thing', new Date(e.t).toLocaleString('en-CA'), e.text].map(q).join(',')));
+    ['creative', 'strategy'].forEach(l => LENSES[l].dims.forEach(d => {
+      (s[l].notes[d.id] || []).forEach(e => rows.push([st.name, LENSES[l].label + ' / ' + d.name, new Date(e.t).toLocaleString('en-CA'), e.text].map(q).join(',')));
+      const dr = draftOf(st.id, d.id);
+      if (dr && dr.trim()) rows.push([st.name, LENSES[l].label + ' / ' + d.name, 'draft — not yet saved', dr.trim()].map(q).join(','));
+    }));
+    const kd = draftOf(st.id, 'killer');
+    if (kd && kd.trim()) rows.push([st.name, 'The One Thing', 'draft — not yet saved', kd.trim()].map(q).join(','));
+  });
+  return rows.join('\n');
+}
+function copyToClip(text, label) {
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(label + ' copied')).catch(() => fallbackCopy(text, label));
+  else fallbackCopy(text, label);
+}
+function fallbackCopy(text, label) {
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+  ta.select(); try { document.execCommand('copy'); toast(label + ' copied'); } catch (e) { toast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+function copyStore(id) {
+  const st = allStores().find(s => s.id === id);
+  copyToClip(storeText(st), st.name.split('\u2014')[0].trim() + ' notes');
+}
+async function exportZip() {
+  if (typeof JSZip === 'undefined') { toast('ZIP library needs a connection to load'); return; }
+  const zip = new JSZip();
+  const stamp = stampFile();
+  zip.file('tour_notes_' + stamp + '.txt', buildText());
+  zip.file('tour_scores_' + stamp + '.csv', buildCSV());
+  allStores().forEach(st => {
+    photoState[st.id].forEach((p, i) => zip.file('photos/' + st.id + '/photo_' + (i + 1) + '.jpg', p.split(',')[1], { base64: true }));
+    audioState[st.id].forEach((a, i) => {
+      const ext = a.mime.includes('mp4') ? 'm4a' : 'webm';
+      zip.file('voicenotes/' + st.id + '/note_' + (i + 1) + '.' + ext, a.dataUrl.split(',')[1], { base64: true });
+    });
+  });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'cleveland_immersion_' + stamp + '.zip'; a.click();
+  toast('Export downloaded — previous exports untouched');
+}
+document.getElementById('export-btn').addEventListener('click', exportZip);
+document.getElementById('copy-summary-btn').addEventListener('click', () => copyToClip(buildText(), 'Summary'));
+document.getElementById('copy-csv-btn').addEventListener('click', () => copyToClip(buildCSV(), 'CSV'));
+document.getElementById('clear-btn').addEventListener('click', () => {
+  if (confirm('Clear ALL notes, scores, photos, and voice notes? This cannot be undone.')) {
+    state = { stores: {}, custom: [], lens: {}, drafts: {} };
+    Object.keys(photoState).forEach(k => photoState[k] = []);
+    Object.keys(audioState).forEach(k => audioState[k] = []);
+    try { localStorage.removeItem(KEY); localStorage.removeItem('cle_immersion_v5'); localStorage.removeItem('cle_immersion_v3'); } catch (e) {}
+    persist(); renderStores(); toast('Cleared');
+  }
+});
+
+// ================= SYNC ENGINE =================
+let remoteEntries = {};   // storeId -> groupKey('creative'|'strategy'|'one_thing') -> dimId -> [ {id,t,text,author} ]
+let remoteScores = {};    // storeId -> scoreKey -> author -> { value, updatedAt }
+let scoreDebounceTimers = {};
+
+function effectiveScore(storeId, key) {
+  const mine = getLocalScore(storeId, key);
+  const others = Object.entries((remoteScores[storeId] || {})[key] || {}).filter(([a]) => a !== getAuthor());
+  const vals = [];
+  if (mine !== undefined && mine !== null) vals.push(mine);
+  others.forEach(([, o]) => { if (o && o.value !== undefined && o.value !== null) vals.push(o.value); });
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+function otherScoreLabel(storeId, key) {
+  const others = Object.entries((remoteScores[storeId] || {})[key] || {}).filter(([a]) => a !== getAuthor());
+  if (!others.length) return '';
+  return others.map(([a, o]) => esc(a) + ': ' + (o.value != null ? o.value : '–')).join(' · ');
+}
+
+function setSyncBadge(text, cls) {
+  const el = document.getElementById('sync-bar'); if (!el) return;
+  el.textContent = text; el.className = cls || '';
+}
+function pendingCount() {
+  let n = 0;
+  allStores().forEach(st => {
+    const s = ensure(st.id);
+    (s.killer || []).forEach(e => { if (!e.synced) n++; });
+    ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (!e.synced) n++; })));
+    const meta = state.scoreMeta[st.id] || {};
+    Object.keys(meta).forEach(k => { if (!meta[k].synced) n++; });
+  });
+  return n;
+}
+function refreshSyncBadge() {
+  const n = pendingCount();
+  if (!navigator.onLine) { setSyncBadge('Offline — queued (' + n + ')', 'warn'); return; }
+  if (n > 0) { setSyncBadge('Syncing… (' + n + ' pending)', ''); return; }
+  setSyncBadge('Synced ✓', 'ok');
+}
+async function apiPost(path, payload) {
+  const res = await fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  if (!res.ok) { let msg = 'HTTP ' + res.status; try { const b = await res.json(); if (b.error) msg = b.error; } catch (e) {} throw new Error(msg); }
+  return res.json();
+}
+
+async function pushEntryNow(storeId, dim, entry) {
+  if (entry.synced) return;
+  const store = allStores().find(x => x.id === storeId);
+  const l = state.lens[storeId];
+  const lens = dim === 'killer' ? 'one_thing' : l;
+  const dimName = dim === 'killer' ? 'The One Thing' : (LENSES[l].dims.find(d => d.id === dim) || {}).name || dim;
+  refreshSyncBadge();
+  try {
+    await apiPost('/entries', {
+      entry_id: entry.id, store_id: storeId, store_name: store ? store.name : '', lens,
+      dimension_id: dim, dimension_name: dimName, timestamp: new Date(entry.t).toISOString(),
+      text: entry.text, author: entry.author
+    });
+    entry.synced = true; persist(); refreshSyncBadge();
+  } catch (err) { refreshSyncBadge(); }
+}
+function retryUnsyncedEntries() {
+  allStores().forEach(st => {
+    const s = ensure(st.id);
+    (s.killer || []).forEach(e => { if (!e.synced) pushEntryNow(st.id, 'killer', e); });
+    ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.synced) pushEntryNow(st.id, dimId, e); })));
+  });
+}
+
+function markScoreDirty(storeId, key) {
+  ensure(storeId);
+  if (!state.scoreMeta[storeId]) state.scoreMeta[storeId] = {};
+  state.scoreMeta[storeId][key] = { updatedAt: new Date().toISOString(), synced: false };
+  persist(); refreshSyncBadge();
+  const tKey = storeId + '::' + key;
+  clearTimeout(scoreDebounceTimers[tKey]);
+  scoreDebounceTimers[tKey] = setTimeout(() => pushScoreNow(storeId, key), 2000);
+}
+async function pushScoreNow(storeId, key) {
+  const store = allStores().find(x => x.id === storeId);
+  const value = getLocalScore(storeId, key);
+  const meta = (state.scoreMeta[storeId] || {})[key];
+  if (!meta || meta.synced) return;
+  try {
+    await apiPost('/scores', {
+      store_id: storeId, store_name: store ? store.name : '', score_key: key,
+      value: (value === undefined ? null : value), author: getAuthor() || 'Unknown', updated_at: meta.updatedAt
+    });
+    meta.synced = true; persist(); refreshSyncBadge();
+  } catch (err) { refreshSyncBadge(); }
+}
+function retryUnsyncedScores() {
+  Object.keys(state.scoreMeta || {}).forEach(storeId => {
+    Object.keys(state.scoreMeta[storeId] || {}).forEach(key => { if (!state.scoreMeta[storeId][key].synced) pushScoreNow(storeId, key); });
+  });
+}
+
+function saveRemoteCache() { try { localStorage.setItem(REMOTE_CACHE_KEY, JSON.stringify({ entries: remoteEntries, scores: remoteScores })); } catch (e) {} }
+function loadRemoteCache() {
+  try { const raw = localStorage.getItem(REMOTE_CACHE_KEY); if (raw) { const d = JSON.parse(raw); remoteEntries = d.entries || {}; remoteScores = d.scores || {}; } } catch (e) {}
+}
+async function pullData() {
+  try {
+    const res = await fetch(API_BASE + '/data', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const nextEntries = {};
+    (data.entries || []).forEach(f => {
+      if (!f.entry_id || !f.store_id) return;
+      const groupKey = f.lens === 'one_thing' ? 'one_thing' : f.lens;
+      const dimId = f.dimension_id || 'killer';
+      nextEntries[f.store_id] = nextEntries[f.store_id] || {};
+      nextEntries[f.store_id][groupKey] = nextEntries[f.store_id][groupKey] || {};
+      nextEntries[f.store_id][groupKey][dimId] = nextEntries[f.store_id][groupKey][dimId] || [];
+      nextEntries[f.store_id][groupKey][dimId].push({ id: f.entry_id, t: Date.parse(f.timestamp) || nowT(), text: f.text || '', author: f.author || 'Unknown' });
+    });
+    const nextScores = {};
+    (data.scores || []).forEach(f => {
+      if (!f.store_id || !f.score_key || !f.author) return;
+      nextScores[f.store_id] = nextScores[f.store_id] || {};
+      nextScores[f.store_id][f.score_key] = nextScores[f.store_id][f.score_key] || {};
+      nextScores[f.store_id][f.score_key][f.author] = { value: (f.value === undefined ? null : f.value), updatedAt: f.updated_at || null };
+    });
+    remoteEntries = nextEntries; remoteScores = nextScores;
+    saveRemoteCache(); renderStores(); refreshSyncBadge();
+  } catch (err) { refreshSyncBadge(); }
+}
+
+function showAuthorModal() { const m = document.getElementById('author-modal'); if (m) m.style.display = 'flex'; }
+function hideAuthorModal() { const m = document.getElementById('author-modal'); if (m) m.style.display = 'none'; }
+function setAuthorQuick(name) { document.getElementById('author-input').value = name; }
+function hydrateAllAuthors() {
+  const me = getAuthor();
+  allStores().forEach(st => { const s = ensure(st.id);
+    (s.killer || []).forEach(e => { if (!e.author) e.author = me; });
+    ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (!e.author) e.author = me; })));
+  });
+  persist();
+}
+function confirmAuthor() {
+  const name = (document.getElementById('author-input').value || '').trim();
+  if (!name) { toast('Enter a name first'); return; }
+  setAuthor(name); hydrateAllAuthors(); hideAuthorModal(); renderStores(); refreshSyncBadge();
+  retryUnsyncedEntries(); retryUnsyncedScores();
+}
+function initSync() {
+  loadRemoteCache();
+  refreshSyncBadge();
+  if (!getAuthor()) showAuthorModal(); else hideAuthorModal();
+  pullData();
+  setInterval(pullData, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullData(); });
+  window.addEventListener('online', () => { refreshSyncBadge(); retryUnsyncedEntries(); retryUnsyncedScores(); pullData(); });
+  window.addEventListener('offline', refreshSyncBadge);
+  setInterval(() => { if (navigator.onLine) { retryUnsyncedEntries(); retryUnsyncedScores(); } refreshSyncBadge(); }, 10000);
+}
+
+// ================= UTIL =================
+let toastTimer = null;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400); }
+renderStores();
+initSync();
+try {
+  if ('IntersectionObserver' in window) {
+    const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('jac-visible'); }), { threshold: 0.05 });
+    document.querySelectorAll('.jac-reveal').forEach(el => obs.observe(el));
+  } else { document.querySelectorAll('.jac-reveal').forEach(el => el.classList.add('jac-visible')); }
+} catch (e) { document.querySelectorAll('.jac-reveal').forEach(el => el.classList.add('jac-visible')); }
+</script>
+</body>
+</html>
