@@ -417,6 +417,11 @@ function pendingCommentCount(storeId) {
   ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (!e.submitted) n++; })));
   return n;
 }
+function pendingScoreCount(storeId) {
+  const meta = state.scoreMeta[storeId] || {};
+  return Object.values(meta).filter(m => !m.submitted).length;
+}
+function pendingSubmitCount(storeId) { return pendingCommentCount(storeId) + pendingScoreCount(storeId); }
 function ensure(id) {
   if (!state.stores[id]) state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
   const s = state.stores[id];
@@ -424,6 +429,7 @@ function ensure(id) {
   if (!state.lens[id]) state.lens[id] = 'creative';
   if (!state.drafts[id]) state.drafts[id] = {};
   if (!state.scoreMeta[id]) state.scoreMeta[id] = {};
+  Object.values(state.scoreMeta[id]).forEach(m => { if (m.submitted === undefined) m.submitted = true; }); // pre-existing scores from before Submit-gating existed
   if (!photoState[id]) photoState[id] = [];
   if (!audioState[id]) audioState[id] = [];
   hydrateEntries(s.killer);
@@ -512,7 +518,7 @@ function renderStores() {
       '</div>' +
       '<div class="clips" id="clips-' + store.id + '"></div>' +
       '<div class="thumbs" id="thumbs-' + store.id + '"></div>' +
-      '<button class="btn-submit-store" onclick="submitStore(\'' + store.id + '\')">Submit Entry ✓' + (pendingCommentCount(store.id) ? ' (' + pendingCommentCount(store.id) + ')' : '') + '</button>' +
+      '<button class="btn-submit-store" onclick="submitStore(\'' + store.id + '\')">Submit Entry ✓' + (pendingSubmitCount(store.id) ? ' (' + pendingSubmitCount(store.id) + ')' : '') + '</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -536,7 +542,7 @@ function setDim(id, d, n) { const s = ensure(id), l = state.lens[id]; s[l].score
 function setLensTab(id, l) { state.lens[id] = l; persist(); renderStores(); }
 function toggleCard(id) {
   const closing = state.openId === id;
-  if (closing) { const p = pendingCommentCount(id); if (p) toast('Heads up — ' + p + ' comment(s) not yet submitted for this store'); }
+  if (closing) { const p = pendingSubmitCount(id); if (p) toast('Heads up — ' + p + ' item(s) not yet submitted for this store'); }
   state.openId = closing ? null : id;
   persist(); renderStores();
   if (state.openId === id) {
@@ -787,9 +793,7 @@ document.getElementById('clear-btn').addEventListener('click', () => {
     state = { stores: {}, custom: [], lens: {}, drafts: {}, openId: null, scoreMeta: {}, deletedIds: [] };
     Object.keys(photoState).forEach(k => photoState[k] = []);
     Object.keys(audioState).forEach(k => audioState[k] = []);
-    entrySyncQueue = [];
-    Object.keys(scoreDebounceTimers).forEach(k => clearTimeout(scoreDebounceTimers[k]));
-    scoreDebounceTimers = {};
+    syncQueue = [];
     try {
       localStorage.removeItem(KEY); localStorage.removeItem('cle_immersion_v5'); localStorage.removeItem('cle_immersion_v3');
       localStorage.removeItem(REMOTE_CACHE_KEY);
@@ -802,7 +806,6 @@ document.getElementById('clear-btn').addEventListener('click', () => {
 // ================= SYNC ENGINE =================
 let remoteEntries = {};   // storeId -> groupKey('creative'|'strategy'|'one_thing') -> dimId -> [ {id,t,text,author} ]
 let remoteScores = {};    // storeId -> scoreKey -> author -> { value, updatedAt }
-let scoreDebounceTimers = {};
 
 function effectiveScore(storeId, key) {
   const mine = getLocalScore(storeId, key);
@@ -830,7 +833,7 @@ function pendingCount() {
     (s.killer || []).forEach(e => { if (e.submitted && !e.synced) n++; });
     ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(list => (list || []).forEach(e => { if (e.submitted && !e.synced) n++; })));
     const meta = state.scoreMeta[st.id] || {};
-    Object.keys(meta).forEach(k => { if (!meta[k].synced) n++; });
+    Object.keys(meta).forEach(k => { if (meta[k].submitted && !meta[k].synced) n++; });
   });
   return n;
 }
@@ -846,25 +849,34 @@ async function apiPost(path, payload) {
   return res.json();
 }
 
-// Serial queue — Submit can stage several comments at once, and this sends them one at a
-// time with a short gap so a batch never bursts past Airtable's 5 req/sec limit.
-let entrySyncQueue = [];
-let entrySyncRunning = false;
+// Serial queue — Submit can stage several comments AND several scores at once, and this
+// sends them one at a time with a short gap so a batch never bursts past Airtable's 5
+// req/sec limit. Nothing is ever added to this queue except by an explicit Submit tap (or a
+// retry of something that was already submitted but failed to sync while offline).
+let syncQueue = [];
+let syncRunning = false;
 function enqueueEntrySync(storeId, dim, entry) {
   if (entry.synced) return;
-  entrySyncQueue.push({ storeId, dim, entry });
-  runEntrySyncQueue();
+  syncQueue.push({ type: 'entry', storeId, dim, entry });
+  runSyncQueue();
 }
-async function runEntrySyncQueue() {
-  if (entrySyncRunning) return;
-  entrySyncRunning = true;
-  while (entrySyncQueue.length) {
+function enqueueScoreSync(storeId, key) {
+  const meta = (state.scoreMeta[storeId] || {})[key];
+  if (!meta || meta.synced) return;
+  syncQueue.push({ type: 'score', storeId, key });
+  runSyncQueue();
+}
+async function runSyncQueue() {
+  if (syncRunning) return;
+  syncRunning = true;
+  while (syncQueue.length) {
     if (!navigator.onLine) break;
-    const job = entrySyncQueue.shift();
-    if (!job.entry.synced) await pushEntryOnce(job.storeId, job.dim, job.entry);
+    const job = syncQueue.shift();
+    if (job.type === 'entry') { if (!job.entry.synced) await pushEntryOnce(job.storeId, job.dim, job.entry); }
+    else if (job.type === 'score') { await pushScoreOnce(job.storeId, job.key); }
     await new Promise(r => setTimeout(r, 250));
   }
-  entrySyncRunning = false;
+  syncRunning = false;
 }
 async function pushEntryOnce(storeId, dim, entry) {
   const store = allStores().find(x => x.id === storeId);
@@ -881,15 +893,33 @@ async function pushEntryOnce(storeId, dim, entry) {
     entry.synced = true; persist(); refreshSyncBadge();
   } catch (err) { refreshSyncBadge(); }
 }
+async function pushScoreOnce(storeId, key) {
+  const meta = (state.scoreMeta[storeId] || {})[key];
+  if (!meta || meta.synced) return;
+  const store = allStores().find(x => x.id === storeId);
+  const value = getLocalScore(storeId, key);
+  refreshSyncBadge();
+  try {
+    await apiPost('/scores', {
+      store_id: storeId, store_name: store ? store.name : '', score_key: key,
+      value: (value === undefined ? null : value), author: getAuthor() || 'Unknown', updated_at: meta.updatedAt
+    });
+    meta.synced = true; persist(); refreshSyncBadge();
+  } catch (err) { refreshSyncBadge(); }
+}
 function submitStore(id) {
   const s = ensure(id);
-  const toSubmit = [];
-  (s.killer || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmit.push({ dim: 'killer', entry: e }); } });
-  ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmit.push({ dim: dimId, entry: e }); } })));
-  if (!toSubmit.length) { toast('Nothing new to submit for this store'); return; }
+  const toSubmitEntries = [];
+  (s.killer || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmitEntries.push({ dim: 'killer', entry: e }); } });
+  ['creative', 'strategy'].forEach(l => Object.keys(s[l].notes).forEach(dimId => (s[l].notes[dimId] || []).forEach(e => { if (!e.submitted) { e.submitted = true; toSubmitEntries.push({ dim: dimId, entry: e }); } })));
+  const meta = state.scoreMeta[id] || {};
+  const toSubmitScores = Object.keys(meta).filter(key => !meta[key].submitted);
+  toSubmitScores.forEach(key => { meta[key].submitted = true; });
+  if (!toSubmitEntries.length && !toSubmitScores.length) { toast('Nothing new to submit for this store'); return; }
   persist(); renderStores();
-  toast('Entry submitted — ' + toSubmit.length + ' item(s) syncing');
-  toSubmit.forEach(({ dim, entry }) => enqueueEntrySync(id, dim, entry));
+  toast('Entry submitted — ' + (toSubmitEntries.length + toSubmitScores.length) + ' item(s) syncing');
+  toSubmitEntries.forEach(({ dim, entry }) => enqueueEntrySync(id, dim, entry));
+  toSubmitScores.forEach(key => enqueueScoreSync(id, key));
 }
 function retryUnsyncedEntries() {
   allStores().forEach(st => {
@@ -902,28 +932,17 @@ function retryUnsyncedEntries() {
 function markScoreDirty(storeId, key) {
   ensure(storeId);
   if (!state.scoreMeta[storeId]) state.scoreMeta[storeId] = {};
-  state.scoreMeta[storeId][key] = { updatedAt: new Date().toISOString(), synced: false };
-  persist(); refreshSyncBadge();
-  const tKey = storeId + '::' + key;
-  clearTimeout(scoreDebounceTimers[tKey]);
-  scoreDebounceTimers[tKey] = setTimeout(() => pushScoreNow(storeId, key), 2000);
-}
-async function pushScoreNow(storeId, key) {
-  const store = allStores().find(x => x.id === storeId);
-  const value = getLocalScore(storeId, key);
-  const meta = (state.scoreMeta[storeId] || {})[key];
-  if (!meta || meta.synced) return;
-  try {
-    await apiPost('/scores', {
-      store_id: storeId, store_name: store ? store.name : '', score_key: key,
-      value: (value === undefined ? null : value), author: getAuthor() || 'Unknown', updated_at: meta.updatedAt
-    });
-    meta.synced = true; persist(); refreshSyncBadge();
-  } catch (err) { refreshSyncBadge(); }
+  // submitted stays false here — a tap never syncs on its own. Only an explicit Submit
+  // Entry tap (or a retry of something already submitted) flips it to true and enqueues it.
+  state.scoreMeta[storeId][key] = { updatedAt: new Date().toISOString(), submitted: false, synced: false };
+  persist();
 }
 function retryUnsyncedScores() {
   Object.keys(state.scoreMeta || {}).forEach(storeId => {
-    Object.keys(state.scoreMeta[storeId] || {}).forEach(key => { if (!state.scoreMeta[storeId][key].synced) pushScoreNow(storeId, key); });
+    Object.keys(state.scoreMeta[storeId] || {}).forEach(key => {
+      const m = state.scoreMeta[storeId][key];
+      if (m.submitted && !m.synced) enqueueScoreSync(storeId, key);
+    });
   });
 }
 
