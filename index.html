@@ -381,6 +381,7 @@ if (!state.drafts) state.drafts = {};
 if (!state.openId) state.openId = null;
 if (!state.scoreMeta) state.scoreMeta = {};
 if (!state.deletedIds) state.deletedIds = [];
+if (!state.deleteQueue) state.deleteQueue = [];
 const photoState = {};
 const audioState = {};
 
@@ -585,19 +586,19 @@ function addEntry(id, dim) {
 }
 function confirmDeleteTwice() {
   if (!confirm('Remove this entry?')) return false;
-  return confirm('Are you sure? It’ll disappear from this device for good (it won’t come back on a pull) — the Airtable row is untouched.');
+  return confirm('Are you sure? This permanently deletes it from Airtable too — for both devices, not just this one.');
 }
 function delEntry(id, dim, i) {
   if (!confirmDeleteTwice()) return;
   const l = state.lens[id];
   const removed = ensure(id)[l].notes[dim].splice(i, 1)[0];
-  if (removed && removed.id) state.deletedIds.push(removed.id);
+  if (removed && removed.id) { state.deletedIds.push(removed.id); enqueueDelete(removed.id); }
   persist(); renderStores();
 }
 function delKiller(id, i) {
   if (!confirmDeleteTwice()) return;
   const removed = ensure(id).killer.splice(i, 1)[0];
-  if (removed && removed.id) state.deletedIds.push(removed.id);
+  if (removed && removed.id) { state.deletedIds.push(removed.id); enqueueDelete(removed.id); }
   persist(); renderStores();
 }
 function delPhoto(id, i) { if (confirm('Remove photo?')) { photoState[id].splice(i, 1); renderThumbs(id); } }
@@ -795,7 +796,7 @@ document.getElementById('copy-summary-btn').addEventListener('click', () => copy
 document.getElementById('copy-csv-btn').addEventListener('click', () => copyToClip(buildCSV(), 'CSV'));
 document.getElementById('clear-btn').addEventListener('click', () => {
   if (confirm('Clear ALL notes, scores, photos, and voice notes? This cannot be undone.')) {
-    state = { stores: {}, custom: [], lens: {}, drafts: {}, openId: null, scoreMeta: {}, deletedIds: [] };
+    state = { stores: {}, custom: [], lens: {}, drafts: {}, openId: null, scoreMeta: {}, deletedIds: [], deleteQueue: [] };
     Object.keys(photoState).forEach(k => photoState[k] = []);
     Object.keys(audioState).forEach(k => audioState[k] = []);
     syncQueue = [];
@@ -840,6 +841,7 @@ function pendingCount() {
     const meta = state.scoreMeta[st.id] || {};
     Object.keys(meta).forEach(k => { if (meta[k].submitted && !meta[k].synced) n++; });
   });
+  n += (state.deleteQueue || []).length;
   return n;
 }
 function refreshSyncBadge() {
@@ -850,6 +852,11 @@ function refreshSyncBadge() {
 }
 async function apiPost(path, payload) {
   const res = await fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  if (!res.ok) { let msg = 'HTTP ' + res.status; try { const b = await res.json(); if (b.error) msg = b.error; } catch (e) {} throw new Error(msg); }
+  return res.json();
+}
+async function apiDelete(path, payload) {
+  const res = await fetch(API_BASE + path, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   if (!res.ok) { let msg = 'HTTP ' + res.status; try { const b = await res.json(); if (b.error) msg = b.error; } catch (e) {} throw new Error(msg); }
   return res.json();
 }
@@ -871,6 +878,12 @@ function enqueueScoreSync(storeId, key) {
   syncQueue.push({ type: 'score', storeId, key });
   runSyncQueue();
 }
+function enqueueDelete(entryId) {
+  if (state.deleteQueue.indexOf(entryId) === -1) state.deleteQueue.push(entryId);
+  persist();
+  syncQueue.push({ type: 'delete', entryId });
+  runSyncQueue();
+}
 async function runSyncQueue() {
   if (syncRunning) return;
   syncRunning = true;
@@ -879,9 +892,23 @@ async function runSyncQueue() {
     const job = syncQueue.shift();
     if (job.type === 'entry') { if (!job.entry.synced) await pushEntryOnce(job.storeId, job.dim, job.entry); }
     else if (job.type === 'score') { await pushScoreOnce(job.storeId, job.key); }
+    else if (job.type === 'delete') { await pushDeleteOnce(job.entryId); }
     await new Promise(r => setTimeout(r, 250));
   }
   syncRunning = false;
+}
+async function pushDeleteOnce(entryId) {
+  refreshSyncBadge();
+  try {
+    await apiDelete('/entries', { entry_id: entryId });
+    const idx = state.deleteQueue.indexOf(entryId);
+    if (idx > -1) state.deleteQueue.splice(idx, 1);
+    persist(); refreshSyncBadge();
+  } catch (err) { refreshSyncBadge(); }
+}
+function retryPendingDeletes() {
+  (state.deleteQueue || []).forEach(entryId => syncQueue.push({ type: 'delete', entryId }));
+  runSyncQueue();
 }
 async function pushEntryOnce(storeId, dim, entry) {
   const store = allStores().find(x => x.id === storeId);
@@ -1047,11 +1074,12 @@ function initSync() {
   refreshSyncBadge();
   if (!getAuthor()) showAuthorModal(); else hideAuthorModal();
   pullData();
+  retryUnsyncedEntries(); retryUnsyncedScores(); retryPendingDeletes();
   setInterval(pullData, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullData(); });
-  window.addEventListener('online', () => { refreshSyncBadge(); retryUnsyncedEntries(); retryUnsyncedScores(); pullData(); });
+  window.addEventListener('online', () => { refreshSyncBadge(); retryUnsyncedEntries(); retryUnsyncedScores(); retryPendingDeletes(); pullData(); });
   window.addEventListener('offline', refreshSyncBadge);
-  setInterval(() => { if (navigator.onLine) { retryUnsyncedEntries(); retryUnsyncedScores(); } refreshSyncBadge(); }, 10000);
+  setInterval(() => { if (navigator.onLine) { retryUnsyncedEntries(); retryUnsyncedScores(); retryPendingDeletes(); } refreshSyncBadge(); }, 10000);
 }
 
 // ================= UTIL =================
