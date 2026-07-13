@@ -514,7 +514,7 @@ function renderStores() {
       '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'killer\')">Add</button></div></div>' +
       '<div class="capture-row">' +
         '<button class="jac-btn-rec" id="rec-' + store.id + '" onclick="toggleRec(\'' + store.id + '\')">&#9679; Voice Note</button>' +
-        '<label class="photo-input-label">&#128247; Add Photos<input type="file" accept="image/*" capture="environment" multiple onchange="addPhotos(\'' + store.id + '\', this)"></label>' +
+        '<label class="photo-input-label">&#128247; Add Photos<input type="file" accept="image/*" multiple onchange="addPhotos(\'' + store.id + '\', this)"></label>' +
         '<button class="btn-copy-store" onclick="copyStore(\'' + store.id + '\')">Copy This Store\u2019s Notes</button>' +
         '<button class="btn-copy-store" onclick="clearStore(\'' + store.id + '\')">Clear This Store</button>' +
       '</div>' +
@@ -1049,8 +1049,17 @@ async function pullData() {
       nextScores[f.store_id][f.score_key][f.author] = { value: (f.value === undefined ? null : f.value), updatedAt: f.updated_at || null };
     });
     remoteEntries = nextEntries; remoteScores = nextScores;
-    persist(); saveRemoteCache(); renderStores(); refreshSyncBadge();
+    persist(); saveRemoteCache();
+    // Never rebuild the page while someone's mid-sentence in a box — that steals focus and
+    // dismisses the on-screen keyboard. Catch up once they tap out of the box instead.
+    if (isTypingInBox()) { renderSkippedForTyping = true; } else { renderStores(); }
+    refreshSyncBadge();
   } catch (err) { refreshSyncBadge(); }
+}
+let renderSkippedForTyping = false;
+function isTypingInBox() {
+  const el = document.activeElement;
+  return !!(el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type === 'text')));
 }
 
 function showAuthorModal() { const m = document.getElementById('author-modal'); if (m) m.style.display = 'flex'; }
@@ -1081,6 +1090,15 @@ function initSync() {
   window.addEventListener('online', () => { refreshSyncBadge(); retryUnsyncedEntries(); retryUnsyncedScores(); retryPendingDeletes(); pullData(); });
   window.addEventListener('offline', refreshSyncBadge);
   setInterval(() => { if (navigator.onLine) { retryUnsyncedEntries(); retryUnsyncedScores(); retryPendingDeletes(); } refreshSyncBadge(); }, 10000);
+  // Catch up a render that was deliberately skipped while someone was typing, right when
+  // they tap out of the box — never mid-sentence.
+  document.addEventListener('focusout', (e) => {
+    const t = e.target;
+    if (renderSkippedForTyping && t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type === 'text'))) {
+      renderSkippedForTyping = false;
+      renderStores();
+    }
+  });
 }
 
 // ================= UTIL =================
