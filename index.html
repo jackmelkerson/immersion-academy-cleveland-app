@@ -32,8 +32,6 @@ a { color: var(--jac-magenta); text-decoration: none; } a:hover { text-decoratio
 .jac-eyebrow { font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.08em; color: var(--jac-medium-grey); }
 .jac-highlight { background: var(--jac-magenta); color: var(--jac-pure-white); padding: 0.05em 0.2em; }
 .jac-tag { display: inline-block; padding: 0.2rem 0.6rem; font-size: var(--jac-text-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 2px; }
-.jac-tag-academy { background: var(--jac-magenta); color: var(--jac-pure-white); }
-.jac-tag-competitor { background: var(--jac-rich-black); color: var(--jac-pure-white); }
 .jac-tag-lunch { background: var(--jac-status-green); color: var(--jac-pure-white); }
 .jac-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--jac-space-xl); }
 .jac-metric-value { font-family: var(--jac-font-display); font-weight: 700; font-size: 2.1rem; line-height: 1; }
@@ -104,9 +102,6 @@ a { color: var(--jac-magenta); text-decoration: none; } a:hover { text-decoratio
 .add-form { text-align: left; margin-top: var(--jac-space-md); display: none; }
 .add-form.open { display: block; }
 .add-form input[type=text] { width: 100%; padding: 0.6rem; border: 1px solid var(--jac-grey-300); border-radius: 6px; font-size: 16px; margin-bottom: 0.6rem; font-family: var(--jac-font-body); }
-.add-form .typerow { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
-.add-form .typerow button { flex: 1; padding: 0.6rem; border: 1px solid var(--jac-grey-300); background: #fff; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; cursor: pointer; border-radius: 4px; font-family: var(--jac-font-body); }
-.add-form .typerow button.sel { background: var(--jac-rich-black); color: #fff; border-color: var(--jac-rich-black); }
 
 /* Compare */
 .cmp-wrap { overflow-x: auto; border: 1px solid var(--jac-grey-200); border-radius: 6px; }
@@ -263,10 +258,6 @@ body { padding-top: 1.8rem; }
       <div class="add-form" id="add-form">
         <span class="qs-label">New store</span>
         <input type="text" id="add-name" placeholder="Store name — e.g. Golf Galaxy, Mayfield Heights">
-        <div class="typerow">
-          <button id="type-academy" onclick="setAddType('academy')">Academy</button>
-          <button id="type-competitor" class="sel" onclick="setAddType('competitor')">Competitor</button>
-        </div>
         <input type="text" id="add-address" placeholder="Address (optional — enables Navigate link)">
         <button class="jac-btn-map" onclick="addStore()">Create Store Section</button>
       </div>
@@ -484,7 +475,7 @@ function renderStores() {
     return '<div class="jac-stop ' + (isOpen ? '' : 'collapsed') + '" id="card-' + store.id + '">' +
       '<div class="jac-stop-head-toggle" onclick="toggleCard(\'' + store.id + '\')">' +
         '<span class="stop-chev">\u25BC</span>' +
-        '<div class="jac-stop-header"><span class="jac-tag jac-tag-' + store.type + '">' + (store.type === 'academy' ? 'Academy' : 'Competitor') + '</span><span class="jac-stop-name">' + esc(store.name) + '</span></div>' +
+        '<div class="jac-stop-header"><span class="jac-stop-name">' + esc(store.name) + '</span></div>' +
         (store.address ? '<p class="jac-stop-meta" style="margin-bottom:0;">' + esc(store.address) + '</p>' : '') +
         progressPills(store.id) +
       '</div>' +
@@ -610,17 +601,13 @@ function delPhoto(id, i) { if (confirm('Remove photo?')) { photoState[id].splice
 function delClip(id, i) { if (confirm('Remove voice note?')) { audioState[id].splice(i, 1); renderClips(id); } }
 
 // ================= ADD STORE =================
-let addType = 'competitor';
 function toggleAddForm() { document.getElementById('add-form').classList.toggle('open'); }
-function setAddType(t) { addType = t;
-  document.getElementById('type-academy').classList.toggle('sel', t === 'academy');
-  document.getElementById('type-competitor').classList.toggle('sel', t === 'competitor'); }
 function addStore() {
   const name = document.getElementById('add-name').value.trim();
   if (!name) { toast('Give the store a name first'); return; }
   const address = document.getElementById('add-address').value.trim();
   const id = 'custom-' + Date.now();
-  state.custom.push({ id, type: addType, name, address, lookfor: [] });
+  state.custom.push({ id, name, address, lookfor: [] });
   ensure(id); state.openId = id; persist();
   document.getElementById('add-name').value = ''; document.getElementById('add-address').value = '';
   toggleAddForm(); renderStores();
