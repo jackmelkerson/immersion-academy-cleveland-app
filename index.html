@@ -71,9 +71,10 @@ a { color: var(--jac-magenta); text-decoration: none; } a:hover { text-decoratio
 .rating button { width: 2rem; height: 2rem; border-radius: 50%; background: #fff; color: var(--jac-medium-grey); border: 1px solid var(--jac-grey-300); font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: var(--jac-font-body); padding: 0; }
 .rating button.active { background: var(--jac-rich-black); color: #fff; border-color: var(--jac-rich-black); }
 
-/* Lens sections + dimensions */
-.lens-section { margin-top: var(--jac-space-lg); padding-top: var(--jac-space-md); border-top: 1px solid var(--jac-grey-200); }
-.lens-section-title { font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-400); }
+/* Lens tabs + dimensions */
+.lens-tabs { display: flex; border-bottom: 1px solid var(--jac-grey-200); margin-top: var(--jac-space-lg); }
+.lens-tabs button { flex: 1; padding: 0.7rem 0.5rem; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-400); cursor: pointer; font-family: var(--jac-font-body); }
+.lens-tabs button.active { color: var(--jac-rich-black); border-bottom-color: var(--jac-magenta); }
 .dim { margin-top: var(--jac-space-md); }
 .dim-name { font-size: var(--jac-text-body); font-weight: 700; }
 .dim-hints { font-size: var(--jac-text-small); color: var(--jac-grey-500); line-height: 1.4; margin: 2px 0 0.5rem; }
@@ -268,9 +269,13 @@ body { padding-top: 1.8rem; }
 <section id="compare" class="jac-section jac-reveal">
   <div class="jac-container">
     <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">END OF DAY</p>
-    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-lg);">The comparison matrix</h2>
+    <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: var(--jac-space-lg);">
+      <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: 0;">The comparison matrix</h2>
+      <button class="jac-btn-map" onclick="pullData({manual:true})" style="white-space: nowrap;">&#8635; Refresh from Airtable</button>
+    </div>
+    <p id="cmp-pull-status" style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-bottom: var(--jac-space-sm);"></p>
     <div class="cmp-wrap"><table id="cmp-table"></table></div>
-    <p style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-top: var(--jac-space-sm);">Green = highest in row &middot; red = lowest &middot; C = creative lens &middot; S = strategy lens. Refreshes as you score.</p>
+    <p style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-top: var(--jac-space-sm);">Green = highest in row &middot; red = lowest &middot; C = creative lens &middot; S = strategy lens. This table reads from Airtable (both your own and synced remote scores), refreshed automatically every 30s and on Refresh above — not just what's tapped on this device.</p>
   </div>
 </section>
 
@@ -426,6 +431,7 @@ function ensure(id) {
   if (!state.stores[id]) state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
   const s = state.stores[id];
   if (!Array.isArray(s.killer)) s.killer = s.killer ? [{ t: nowT(), text: s.killer }] : [];
+  if (!state.lens[id]) state.lens[id] = 'creative';
   if (!state.drafts[id]) state.drafts[id] = {};
   if (!state.scoreMeta[id]) state.scoreMeta[id] = {};
   Object.values(state.scoreMeta[id]).forEach(m => { if (m.submitted === undefined) m.submitted = true; }); // pre-existing scores from before Submit-gating existed
@@ -470,7 +476,7 @@ function entriesHTML(storeId, groupKey, dimId, localList, delPrefix) {
 function renderStores() {
   const el = document.getElementById('store-list');
   el.innerHTML = allStores().map(store => {
-    const s = ensure(store.id);
+    const s = ensure(store.id), lens = state.lens[store.id];
     const nav = store.address ? '<a class="jac-btn-map" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(store.address) + '&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a>' : '';
     const lookfor = store.lookfor && store.lookfor.length ? '<details class="jac-details"><summary>What to look for <span class="jac-chevron">&#9662;</span></summary><ul>' + store.lookfor.map(l => '<li>' + l + '</li>').join('') + '</ul></details>' : '';
     const isOpen = state.openId === store.id;
@@ -491,18 +497,19 @@ function renderStores() {
         (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
         '</div><div class="qs-hint">' + q.hint + '</div>';
       }).join('') + '</div>' +
-      ['creative', 'strategy'].map(lensId => {
-        return '<div class="lens-section"><p class="lens-section-title">' + LENSES[lensId].label + '</p>' +
-        LENSES[lensId].dims.map(d => {
-          const sc = s[lensId].scores[d.id];
-          const oLabel = otherScoreLabel(store.id, lensId + '.' + d.id);
-          return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
-          ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
-          (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
-          entriesHTML(store.id, lensId, d.id, s[lensId].notes[d.id], "delEntry('" + store.id + "','" + d.id + "',") +
-          '<div class="entry-input-row"><textarea id="in-' + store.id + '-' + d.id + '" placeholder="Draft\u2026 autosaves. Keyboard mic to dictate. Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'' + d.id + '\',this.value)">' + esc(draftOf(store.id, d.id)) + '</textarea>' +
-          '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'' + d.id + '\')">Add</button></div></div>';
-        }).join('') + '</div>';
+      '<div class="lens-tabs">' +
+        '<button class="' + (lens === 'creative' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'creative\')">Creative</button>' +
+        '<button class="' + (lens === 'strategy' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'strategy\')">Strategy</button>' +
+      '</div>' +
+      LENSES[lens].dims.map(d => {
+        const sc = s[lens].scores[d.id];
+        const oLabel = otherScoreLabel(store.id, lens + '.' + d.id);
+        return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
+        ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
+        (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
+        entriesHTML(store.id, lens, d.id, s[lens].notes[d.id], "delEntry('" + store.id + "','" + d.id + "',") +
+        '<div class="entry-input-row"><textarea id="in-' + store.id + '-' + d.id + '" placeholder="Draft\u2026 autosaves. Keyboard mic to dictate. Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'' + d.id + '\',this.value)">' + esc(draftOf(store.id, d.id)) + '</textarea>' +
+        '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'' + d.id + '\')">Add</button></div></div>';
       }).join('') +
       '<div class="killer"><span class="qs-label">The One Thing</span>' +
       '<div style="font-size: var(--jac-text-caption); color: var(--jac-grey-500); margin-bottom: 0.4rem;">If you told the c-suite one thing about this store, what would it be?</div>' +
@@ -549,6 +556,7 @@ function toggleCard(id) {
   }
 }
 function pill(label, val, done) { return '<span class="stop-pill ' + (done ? 'done' : '') + '">' + label + ' ' + val + '</span>'; }
+function setLensTab(id, l) { state.lens[id] = l; persist(); renderStores(); }
 function progressPills(id) {
   const s = ensure(id);
   const qVals = QUICK.map(q => effectiveScore(id, 'quick.' + q.id)).filter(v => v !== null && v !== undefined);
@@ -839,8 +847,20 @@ function pendingCount() {
 function refreshSyncBadge() {
   const n = pendingCount();
   if (!navigator.onLine) { setSyncBadge('Offline — queued (' + n + ')', 'warn'); return; }
-  if (n > 0) { setSyncBadge('Syncing… (' + n + ' pending)', ''); return; }
-  setSyncBadge('Synced ✓', 'ok');
+  // A pull failure is worse than pending outbound writes — it means everything on screen
+  // (including the comparison matrix) may be stale cached data, not what's actually in
+  // Airtable right now. Surface that ahead of the ordinary "syncing" states, which only
+  // ever reflected outbound writes and said nothing about whether the last pull succeeded.
+  if (lastPullFailed) { setSyncBadge('Pull failed — showing cached data, retrying…', 'warn'); updatePullStatus(); return; }
+  if (n > 0) { setSyncBadge('Syncing… (' + n + ' pending)', ''); updatePullStatus(); return; }
+  setSyncBadge('Synced ✓' + (lastPullAt ? ' · pulled ' + fmtTime(lastPullAt) : ''), 'ok');
+  updatePullStatus();
+}
+function updatePullStatus() {
+  const el = document.getElementById('cmp-pull-status'); if (!el) return;
+  if (lastPullFailed) { el.textContent = 'Last pull from Airtable failed — this table may be showing stale/cached data. Tap Refresh to retry.'; el.style.color = 'var(--jac-status-red)'; return; }
+  el.style.color = 'var(--jac-grey-400)';
+  el.textContent = lastPullAt ? ('Last pulled from Airtable: ' + fmtTime(lastPullAt)) : 'Not yet pulled from Airtable this session.';
 }
 async function apiPost(path, payload) {
   const res = await fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1004,7 +1024,10 @@ function saveRemoteCache() { try { localStorage.setItem(REMOTE_CACHE_KEY, JSON.s
 function loadRemoteCache() {
   try { const raw = localStorage.getItem(REMOTE_CACHE_KEY); if (raw) { const d = JSON.parse(raw); remoteEntries = d.entries || {}; remoteScores = d.scores || {}; } } catch (e) {}
 }
-async function pullData() {
+let lastPullFailed = false;
+let lastPullAt = null;
+async function pullData(opts) {
+  const manual = opts && opts.manual;
   try {
     const res = await fetch(API_BASE + '/data', { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1041,12 +1064,19 @@ async function pullData() {
       nextScores[f.store_id][f.score_key][f.author] = { value: (f.value === undefined ? null : f.value), updatedAt: f.updated_at || null };
     });
     remoteEntries = nextEntries; remoteScores = nextScores;
+    lastPullFailed = false; lastPullAt = Date.now();
     persist(); saveRemoteCache();
     // Never rebuild the page while someone's mid-sentence in a box — that steals focus and
     // dismisses the on-screen keyboard. Catch up once they tap out of the box instead.
     if (isTypingInBox()) { renderSkippedForTyping = true; } else { renderStores(); }
     refreshSyncBadge();
-  } catch (err) { refreshSyncBadge(); }
+    if (manual) toast('Pulled latest from Airtable — ' + (data.scores || []).length + ' scores, ' + (data.entries || []).length + ' entries');
+  } catch (err) {
+    lastPullFailed = true;
+    console.error('pullData failed:', err);
+    refreshSyncBadge();
+    if (manual) toast('Pull failed: ' + err.message);
+  }
 }
 let renderSkippedForTyping = false;
 function isTypingInBox() {
