@@ -819,10 +819,17 @@ let remoteScores = {};    // storeId -> scoreKey -> author -> { value, updatedAt
 
 function effectiveScore(storeId, key) {
   const mine = getLocalScore(storeId, key);
-  const others = Object.entries((remoteScores[storeId] || {})[key] || {}).filter(([a]) => a !== getAuthor());
+  const haveMine = mine !== undefined && mine !== null;
+  const all = Object.entries((remoteScores[storeId] || {})[key] || {});
   const vals = [];
-  if (mine !== undefined && mine !== null) vals.push(mine);
-  others.forEach(([, o]) => { if (o && o.value !== undefined && o.value !== null) vals.push(o.value); });
+  if (haveMine) vals.push(mine);
+  all.forEach(([author, o]) => {
+    // Skip a remote row for the current author ONLY when local already covers it — otherwise
+    // this device (a different device/session than whatever recorded it, or one that's had its
+    // local storage cleared since) would silently drop a real, already-synced score to zero.
+    if (author === getAuthor() && haveMine) return;
+    if (o && o.value !== undefined && o.value !== null) vals.push(o.value);
+  });
   if (!vals.length) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
