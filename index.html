@@ -231,8 +231,7 @@ body { padding-top: 1.8rem; }
 <section id="itinerary" class="jac-section jac-reveal">
   <div class="jac-container">
     <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">THE SCHEDULE</p>
-    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-sm);">Boardman first &mdash; the farthest stop, while you're fresh</h2>
-    <p style="color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-lg);">Times are the plan, not the rule &mdash; store sections below aren't tied to this order. Cabela's is the flex cut if the day runs long; every mission-critical stop survives without it.</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-lg);">Academy first, starting far out and working our way back.</h2>
 
     <div class="itin-row"><span class="itin-time">9:15 &ndash; 10:05 AM</span><span class="itin-name">Academy Sports + Outdoors &mdash; Boardman</span><a href="https://www.google.com/maps/dir/?api=1&destination=1280+Doral+Dr,+Youngstown,+OH+44514&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">Depart hotel 8:00 AM &middot; ~75 min drive (I-77 S / I-76 E)</span></div>
     <div class="itin-row"><span class="itin-time">11:00 &ndash; 11:45 AM</span><span class="itin-name">Academy Sports + Outdoors &mdash; North Canton</span><a href="https://www.google.com/maps/dir/?api=1&destination=6687+Strip+Ave+NW,+North+Canton,+OH+44720&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a><span class="itin-drive">~55 min drive from Boardman (US-30 W)</span></div>
@@ -250,8 +249,14 @@ body { padding-top: 1.8rem; }
 <section id="stores" class="jac-section jac-reveal" style="background: var(--jac-soft-grey);">
   <div class="jac-container">
     <p class="jac-eyebrow" style="margin-bottom: var(--jac-space-sm);">THE STORES</p>
-    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-sm);">One section per store &mdash; any order</h2>
-    <p style="color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-lg);">Quick scores on arrival, lens notes as you walk, The One Thing on the way out. Type freely &mdash; drafts autosave locally and are never lost. Tap <b>Add</b> when a thought is done to lock it as a timestamped entry; entries are append-only and never overwritten, so saved data is always safe. Tap a store to open it &mdash; one open at a time keeps you honest about which store you\u2019re scoring. Pass something worth seeing? Add it below.</p>
+    <h2 class="jac-display" style="font-size: var(--jac-text-title); margin-bottom: var(--jac-space-sm);">Detailed Store Notes &amp; Photos</h2>
+    <ul style="color: var(--jac-medium-grey); font-size: var(--jac-text-small); margin-bottom: var(--jac-space-lg); padding-left: 1.1rem; line-height: 1.6;">
+      <li>Score quickly on arrival, take more detailed notes and photos as you walk the store, then record &lsquo;the one thing&rsquo; on your way out.</li>
+      <li>Type freely &mdash; drafts autosave locally.</li>
+      <li>Tap <b>Add</b> when a thought is done to lock it as a timestamped entry all Jackmanites can see.</li>
+      <li>Tap <b>Submit</b> to commit it to the database.</li>
+      <li>Add a store if needed below.</li>
+    </ul>
     <div id="store-list"></div>
     <div class="add-store">
       <button class="jac-btn-map" onclick="toggleAddForm()">+ Add a Store</button>
@@ -294,9 +299,9 @@ body { padding-top: 1.8rem; }
 <script>
 // ================= FRAMEWORK =================
 const QUICK = [
-  { id: 'gut', name: 'Gut Read', hint: 'First 30 seconds — what does this store think of its customer?' },
-  { id: 'assort', name: 'Assortment', hint: 'Breadth, curation, local relevance — is the range right and distinctive?' },
-  { id: 'nav', name: 'Navigation & Findability', hint: 'Sightlines, wayfinding, could you find a specific item unaided?' },
+  { id: 'gut', name: 'Gut Read', hint: 'First 30 seconds — what stands out? What is your gut reaction to the store and the retailer?' },
+  { id: 'assort', name: 'Store Quality & Appearance', hint: 'How does the store look and feel? Is it well maintained, clean, recently updated?' },
+  { id: 'nav', name: 'Navigation & Findability', hint: 'How are the sightlines, wayfinding, signage?' },
   { id: 'insp', name: 'Inspiration', hint: 'Does it make you want something you didn\u2019t come for?' }
 ];
 const LENSES = {
@@ -306,10 +311,10 @@ const LENSES = {
     { id: 'comms', name: 'Communications & Signage', hints: 'Hierarchy and clarity · promo vs. brand voice balance · category storytelling · localisation' },
     { id: 'mktg', name: 'Marketing Integration', hints: 'Loyalty and app presence · campaign tie-ins · visible BOPIS, screens, QR usage · community hooks' } ] },
   strategy: { label: 'Strategy', dims: [
-    { id: 'customer', name: 'Customer & Experience', hints: 'Who is actually shopping here? · basket behaviour · staff interaction and services offered — try to get helped · friction points' },
-    { id: 'value', name: 'Value Proposition & Pricing', hints: 'Price perception and clarity · promo depth and mechanics · good-better-best architecture · private label price gap' },
-    { id: 'ops', name: 'Operations & Execution', hints: 'In-stock and inventory health · BOPIS / omni execution · store standards and recovery · labour deployment' },
-    { id: 'comp', name: 'Competitive Positioning', hints: 'What does this store do that Academy can\u2019t? · vulnerability Academy can attack · prioritized divisions — who gets the best real estate · differentiation' } ] }
+    { id: 'customer', name: 'Customer & Experience', hints: 'Does the retailer have a clear idea of their customer? Who is shopping here? How is the in-store experience? How is service? Are there any friction points?' },
+    { id: 'value', name: 'Value Proposition & Pricing', hints: 'Is pricing and value clearly communicated? What are the promo mechanics? What is private label price gap?' },
+    { id: 'ops', name: 'Operations & Execution', hints: 'How is the store maintained? How is inventory and stock? What is the BOPIS / omni execution? Is the store well run?' },
+    { id: 'comp', name: 'Competitive Positioning', hints: 'What is this store trying to say about the brand? How is it different (better / worse) than competition?' } ] }
 };
 const BUILTIN = [
   { id: 'academy-boardman', type: 'academy', name: 'Academy Sports + Outdoors — Boardman', address: '1280 Doral Dr, Youngstown, OH 44514',
