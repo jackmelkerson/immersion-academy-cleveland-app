@@ -407,6 +407,16 @@ function getAuthor() { try { return localStorage.getItem(AUTHOR_KEY) || ''; } ca
 function setAuthor(name) { try { localStorage.setItem(AUTHOR_KEY, name); } catch (e) {} }
 function scoreSlot(storeId, key) { const s = ensure(storeId); const [g, id] = key.split('.'); return g === 'quick' ? s.quick : s[g].scores; }
 function getLocalScore(storeId, key) { return scoreSlot(storeId, key)[key.split('.')[1]]; }
+// What THIS named author scored, whether it's sitting in this browser's local storage or only
+// came down from Airtable under their name (e.g. a different device, or local storage that's
+// been cleared since) — used purely to decide which bubble to highlight black. Tapping a bubble
+// still writes to local storage as before; this only affects what shows as already-selected.
+function myScore(storeId, key) {
+  const mine = getLocalScore(storeId, key);
+  if (mine !== undefined && mine !== null) return mine;
+  const entry = ((remoteScores[storeId] || {})[key] || {})[getAuthor()];
+  return (entry && entry.value !== undefined && entry.value !== null) ? entry.value : undefined;
+}
 
 function allStores() { return [...BUILTIN, ...state.custom]; }
 function hydrateEntries(list) {
@@ -497,7 +507,7 @@ function renderStores() {
       QUICK.map(q => {
         const oLabel = otherScoreLabel(store.id, 'quick.' + q.id);
         return '<div class="qs-row"><span class="qs-name">' + q.name + '</span>' +
-        ratingRow(s.quick[q.id], "setQuick('" + store.id + "','" + q.id + "',") +
+        ratingRow(myScore(store.id, 'quick.' + q.id), "setQuick('" + store.id + "','" + q.id + "',") +
         (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
         '</div><div class="qs-hint">' + q.hint + '</div>';
       }).join('') + '</div>' +
@@ -506,7 +516,7 @@ function renderStores() {
         '<button class="' + (lens === 'strategy' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'strategy\')">Strategy</button>' +
       '</div>' +
       LENSES[lens].dims.map(d => {
-        const sc = s[lens].scores[d.id];
+        const sc = myScore(store.id, lens + '.' + d.id);
         const oLabel = otherScoreLabel(store.id, lens + '.' + d.id);
         return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
         ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
