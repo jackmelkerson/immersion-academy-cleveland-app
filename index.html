@@ -71,10 +71,9 @@ a { color: var(--jac-magenta); text-decoration: none; } a:hover { text-decoratio
 .rating button { width: 2rem; height: 2rem; border-radius: 50%; background: #fff; color: var(--jac-medium-grey); border: 1px solid var(--jac-grey-300); font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: var(--jac-font-body); padding: 0; }
 .rating button.active { background: var(--jac-rich-black); color: #fff; border-color: var(--jac-rich-black); }
 
-/* Lens tabs + dimensions */
-.lens-tabs { display: flex; border-bottom: 1px solid var(--jac-grey-200); margin-top: var(--jac-space-lg); }
-.lens-tabs button { flex: 1; padding: 0.7rem 0.5rem; background: none; border: none; border-bottom: 2px solid transparent; font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-400); cursor: pointer; font-family: var(--jac-font-body); }
-.lens-tabs button.active { color: var(--jac-rich-black); border-bottom-color: var(--jac-magenta); }
+/* Lens sections + dimensions */
+.lens-section { margin-top: var(--jac-space-lg); padding-top: var(--jac-space-md); border-top: 1px solid var(--jac-grey-200); }
+.lens-section-title { font-weight: 700; font-size: var(--jac-text-small); text-transform: uppercase; letter-spacing: 0.04em; color: var(--jac-grey-400); }
 .dim { margin-top: var(--jac-space-md); }
 .dim-name { font-size: var(--jac-text-body); font-weight: 700; }
 .dim-hints { font-size: var(--jac-text-small); color: var(--jac-grey-500); line-height: 1.4; margin: 2px 0 0.5rem; }
@@ -307,6 +306,10 @@ const LENSES = {
     { id: 'ops', name: 'Operations & Execution', hints: 'How is the store maintained? How is inventory and stock? What is the BOPIS / omni execution? Is the store well run?' },
     { id: 'comp', name: 'Competitive Positioning', hints: 'What is this store trying to say about the brand? How is it different (better / worse) than competition?' } ] }
 };
+// Dimension ids never collide between lenses, so the lens a dim belongs to can always be
+// derived from the id itself — this replaces the old "whichever tab is currently open"
+// lookup, which broke the moment a tab was switched before an async sync fired.
+function lensOfDim(dimId) { return LENSES.creative.dims.some(d => d.id === dimId) ? 'creative' : 'strategy'; }
 const BUILTIN = [
   { id: 'academy-boardman', type: 'academy', name: 'Academy Sports + Outdoors — Boardman', address: '1280 Doral Dr, Youngstown, OH 44514',
     lookfor: ['How this store compares to North Canton — same banner, different market: layout, assortment, or format differences', 'Any regional tweaks (hunting license counter, local team fan shop, Youngstown-area sports ties)', 'Whether the newer-opened store (2025) shows a refreshed format vs. older Academy locations'] },
@@ -423,7 +426,6 @@ function ensure(id) {
   if (!state.stores[id]) state.stores[id] = { quick: {}, creative: { scores: {}, notes: {} }, strategy: { scores: {}, notes: {} }, killer: [] };
   const s = state.stores[id];
   if (!Array.isArray(s.killer)) s.killer = s.killer ? [{ t: nowT(), text: s.killer }] : [];
-  if (!state.lens[id]) state.lens[id] = 'creative';
   if (!state.drafts[id]) state.drafts[id] = {};
   if (!state.scoreMeta[id]) state.scoreMeta[id] = {};
   Object.values(state.scoreMeta[id]).forEach(m => { if (m.submitted === undefined) m.submitted = true; }); // pre-existing scores from before Submit-gating existed
@@ -468,7 +470,7 @@ function entriesHTML(storeId, groupKey, dimId, localList, delPrefix) {
 function renderStores() {
   const el = document.getElementById('store-list');
   el.innerHTML = allStores().map(store => {
-    const s = ensure(store.id), lens = state.lens[store.id];
+    const s = ensure(store.id);
     const nav = store.address ? '<a class="jac-btn-map" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(store.address) + '&travelmode=driving" target="_blank" rel="noopener">Navigate &rarr;</a>' : '';
     const lookfor = store.lookfor && store.lookfor.length ? '<details class="jac-details"><summary>What to look for <span class="jac-chevron">&#9662;</span></summary><ul>' + store.lookfor.map(l => '<li>' + l + '</li>').join('') + '</ul></details>' : '';
     const isOpen = state.openId === store.id;
@@ -489,19 +491,18 @@ function renderStores() {
         (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
         '</div><div class="qs-hint">' + q.hint + '</div>';
       }).join('') + '</div>' +
-      '<div class="lens-tabs">' +
-        '<button class="' + (lens === 'creative' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'creative\')">Creative</button>' +
-        '<button class="' + (lens === 'strategy' ? 'active' : '') + '" onclick="setLensTab(\'' + store.id + '\',\'strategy\')">Strategy</button>' +
-      '</div>' +
-      LENSES[lens].dims.map(d => {
-        const sc = s[lens].scores[d.id];
-        const oLabel = otherScoreLabel(store.id, lens + '.' + d.id);
-        return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
-        ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
-        (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
-        entriesHTML(store.id, lens, d.id, s[lens].notes[d.id], "delEntry('" + store.id + "','" + d.id + "',") +
-        '<div class="entry-input-row"><textarea id="in-' + store.id + '-' + d.id + '" placeholder="Draft\u2026 autosaves. Keyboard mic to dictate. Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'' + d.id + '\',this.value)">' + esc(draftOf(store.id, d.id)) + '</textarea>' +
-        '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'' + d.id + '\')">Add</button></div></div>';
+      ['creative', 'strategy'].map(lensId => {
+        return '<div class="lens-section"><p class="lens-section-title">' + LENSES[lensId].label + '</p>' +
+        LENSES[lensId].dims.map(d => {
+          const sc = s[lensId].scores[d.id];
+          const oLabel = otherScoreLabel(store.id, lensId + '.' + d.id);
+          return '<div class="dim"><div class="dim-name">' + d.name + '</div><div class="dim-hints">' + d.hints + '</div>' +
+          ratingRow(sc, "setDim('" + store.id + "','" + d.id + "',") +
+          (oLabel ? '<span class="other-score">' + oLabel + '</span>' : '') +
+          entriesHTML(store.id, lensId, d.id, s[lensId].notes[d.id], "delEntry('" + store.id + "','" + d.id + "',") +
+          '<div class="entry-input-row"><textarea id="in-' + store.id + '-' + d.id + '" placeholder="Draft\u2026 autosaves. Keyboard mic to dictate. Add locks it in." oninput="updateDraft(\'' + store.id + '\',\'' + d.id + '\',this.value)">' + esc(draftOf(store.id, d.id)) + '</textarea>' +
+          '<button class="btn-add-entry" onclick="addEntry(\'' + store.id + '\',\'' + d.id + '\')">Add</button></div></div>';
+        }).join('') + '</div>';
       }).join('') +
       '<div class="killer"><span class="qs-label">The One Thing</span>' +
       '<div style="font-size: var(--jac-text-caption); color: var(--jac-grey-500); margin-bottom: 0.4rem;">If you told the c-suite one thing about this store, what would it be?</div>' +
@@ -536,8 +537,7 @@ function renderClips(id) {
 
 // ================= MUTATIONS =================
 function setQuick(id, q, n) { const s = ensure(id); s.quick[q] = s.quick[q] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, 'quick.' + q); }
-function setDim(id, d, n) { const s = ensure(id), l = state.lens[id]; s[l].scores[d] = s[l].scores[d] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, l + '.' + d); }
-function setLensTab(id, l) { state.lens[id] = l; persist(); renderStores(); }
+function setDim(id, d, n) { const s = ensure(id), l = lensOfDim(d); s[l].scores[d] = s[l].scores[d] === n ? undefined : n; persist(); renderStores(); markScoreDirty(id, l + '.' + d); }
 function toggleCard(id) {
   const closing = state.openId === id;
   if (closing) { const p = pendingSubmitCount(id); if (p) toast('Heads up — ' + p + ' item(s) not yet submitted for this store'); }
@@ -573,7 +573,7 @@ function addEntry(id, dim) {
   const entry = { id: uuid(), t: nowT(), text, author: getAuthor() || 'Unknown', submitted: false, synced: false };
   if (dim === 'killer') s.killer.push(entry);
   else {
-    const l = state.lens[id];
+    const l = lensOfDim(dim);
     if (!s[l].notes[dim]) s[l].notes[dim] = [];
     s[l].notes[dim].push(entry);
   }
@@ -586,7 +586,7 @@ function confirmDeleteTwice() {
 }
 function delEntry(id, dim, i) {
   if (!confirmDeleteTwice()) return;
-  const l = state.lens[id];
+  const l = lensOfDim(dim);
   const removed = ensure(id)[l].notes[dim].splice(i, 1)[0];
   if (removed && removed.id) { state.deletedIds.push(removed.id); enqueueDelete(removed.id); }
   persist(); renderStores();
@@ -905,7 +905,7 @@ function retryPendingDeletes() {
 }
 async function pushEntryOnce(storeId, dim, entry) {
   const store = allStores().find(x => x.id === storeId);
-  const l = state.lens[storeId];
+  const l = dim === 'killer' ? null : lensOfDim(dim);
   const lens = dim === 'killer' ? 'one_thing' : l;
   const dimName = dim === 'killer' ? 'The One Thing' : (LENSES[l].dims.find(d => d.id === dim) || {}).name || dim;
   refreshSyncBadge();
