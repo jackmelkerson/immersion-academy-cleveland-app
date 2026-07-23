@@ -276,6 +276,10 @@ body { padding-top: 1.8rem; }
     <p id="cmp-pull-status" style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-bottom: var(--jac-space-sm);"></p>
     <div class="cmp-wrap"><table id="cmp-table"></table></div>
     <p style="font-size: var(--jac-text-caption); color: var(--jac-grey-400); margin-top: var(--jac-space-sm);">Green = highest in row &middot; red = lowest &middot; C = creative lens &middot; S = strategy lens. This table reads from Airtable (both your own and synced remote scores), refreshed automatically every 30s and on Refresh above — not just what's tapped on this device.</p>
+    <details style="margin-top: var(--jac-space-lg);">
+      <summary style="cursor: pointer; font-size: var(--jac-text-caption); color: var(--jac-grey-400); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;">Debug: raw score rows from Airtable (tap Refresh above first)</summary>
+      <pre id="debug-raw-scores" style="font-size: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; background: var(--jac-soft-grey); padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem; max-height: 320px; overflow: auto;">Tap "Refresh from Airtable" above to load.</pre>
+    </details>
   </div>
 </section>
 
@@ -1020,6 +1024,34 @@ function retryUnsyncedScores() {
   });
 }
 
+function renderDebugRawScores(allRows, skippedRows) {
+  const el = document.getElementById('debug-raw-scores'); if (!el) return;
+  const validDimKeys = ['quick.gut','quick.assort','quick.nav','quick.insp',
+    'creative.design','creative.brand','creative.comms','creative.mktg',
+    'strategy.customer','strategy.value','strategy.ops','strategy.comp'];
+  const validStoreIds = allStores().map(s => s.id);
+  let out = 'Total score rows returned by /api/data: ' + allRows.length + '\n';
+  out += 'Rows silently skipped (missing store_id, score_key, or author): ' + skippedRows.length + '\n\n';
+  if (skippedRows.length) {
+    out += '--- SKIPPED ROWS (these never make it into the matrix) ---\n';
+    skippedRows.forEach(f => { out += JSON.stringify(f) + '\n'; });
+    out += '\n';
+  }
+  const strategyRows = allRows.filter(f => String(f.score_key || '').indexOf('strategy') === 0);
+  out += '--- ALL "strategy.*" rows returned (' + strategyRows.length + ') ---\n';
+  if (!strategyRows.length) {
+    out += '(none returned by the API at all — if you can see rows in Airtable, either they are\n in a different base/table than this site\'s env vars point to, or the field names on\n those specific rows don\'t match what this site writes.)\n';
+  }
+  strategyRows.forEach(f => {
+    const flags = [];
+    if (!validStoreIds.includes(f.store_id)) flags.push('⚠ store_id "' + f.store_id + '" does not match any known store id');
+    if (!validDimKeys.includes(f.score_key)) flags.push('⚠ score_key "' + f.score_key + '" does not match any expected key (check for typos, capitalization, extra spaces)');
+    if (f.value === undefined || f.value === null || f.value === '') flags.push('⚠ value is empty/blank');
+    else if (typeof f.value !== 'number') flags.push('⚠ value is type "' + typeof f.value + '" (' + JSON.stringify(f.value) + '), expected a number');
+    out += JSON.stringify(f) + (flags.length ? '\n  ' + flags.join('\n  ') : '\n  looks correct') + '\n\n';
+  });
+  el.textContent = out;
+}
 function saveRemoteCache() { try { localStorage.setItem(REMOTE_CACHE_KEY, JSON.stringify({ entries: remoteEntries, scores: remoteScores })); } catch (e) {} }
 function loadRemoteCache() {
   try { const raw = localStorage.getItem(REMOTE_CACHE_KEY); if (raw) { const d = JSON.parse(raw); remoteEntries = d.entries || {}; remoteScores = d.scores || {}; } } catch (e) {}
@@ -1057,14 +1089,16 @@ async function pullData(opts) {
       ['creative', 'strategy'].forEach(l => Object.values(s[l].notes).forEach(prune));
     });
     const nextScores = {};
+    const skippedScoreRows = [];
     (data.scores || []).forEach(f => {
-      if (!f.store_id || !f.score_key || !f.author) return;
+      if (!f.store_id || !f.score_key || !f.author) { skippedScoreRows.push(f); return; }
       nextScores[f.store_id] = nextScores[f.store_id] || {};
       nextScores[f.store_id][f.score_key] = nextScores[f.store_id][f.score_key] || {};
       nextScores[f.store_id][f.score_key][f.author] = { value: (f.value === undefined ? null : f.value), updatedAt: f.updated_at || null };
     });
     remoteEntries = nextEntries; remoteScores = nextScores;
     lastPullFailed = false; lastPullAt = Date.now();
+    renderDebugRawScores(data.scores || [], skippedScoreRows);
     persist(); saveRemoteCache();
     // Never rebuild the page while someone's mid-sentence in a box — that steals focus and
     // dismisses the on-screen keyboard. Catch up once they tap out of the box instead.
